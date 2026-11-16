@@ -13,7 +13,7 @@ const rootPoint = (event: { clientX: number; clientY: number; currentTarget: Eve
   };
 };
 
-const LOOK_SLOP = 14;
+const LOOK_SLOP = 8;
 
 export const MobileControls = () => {
   const flying = useUi((state) => state.hud.flying);
@@ -46,13 +46,6 @@ export const MobileControls = () => {
     node.classList.remove('edge');
   };
 
-  const stopBreak = () => {
-    window.clearTimeout(look.current.timer);
-    look.current.timer = 0;
-    look.current.id = -1;
-    game()?.setBreaking(false);
-  };
-
   return (
     <div className="touch-ui">
       <div
@@ -61,10 +54,6 @@ export const MobileControls = () => {
           if (look.current.id !== -1) return;
           look.current = { x: event.clientX, y: event.clientY, id: event.pointerId, moved: 0, timer: 0 };
           event.currentTarget.setPointerCapture(event.pointerId);
-          const pointer = event.pointerId;
-          look.current.timer = window.setTimeout(() => {
-            if (look.current.id === pointer && look.current.moved < LOOK_SLOP) game()?.setBreaking(true);
-          }, 40);
         }}
         onPointerMove={(event) => {
           if (look.current.id !== event.pointerId) return;
@@ -74,12 +63,10 @@ export const MobileControls = () => {
           look.current.x = event.clientX;
           look.current.y = event.clientY;
           if (look.current.moved < LOOK_SLOP) return;
-          window.clearTimeout(look.current.timer);
-          game()?.setBreaking(false);
           game()?.addLook(dx, dy);
         }}
-        onPointerUp={stopBreak}
-        onPointerCancel={stopBreak}
+        onPointerUp={() => { look.current.id = -1; }}
+        onPointerCancel={() => { look.current.id = -1; }}
       />
       <div
         className="stick-zone"
@@ -135,8 +122,8 @@ export const MobileControls = () => {
       />
       <div className="stick" ref={stick}><i ref={knob} /></div>
       <div className="zoom-pad">
-        <button type="button" aria-label="Приблизить" onClick={(event) => { event.stopPropagation(); game()?.nudgeZoom(-4); }}>+</button>
-        <button type="button" aria-label="Отдалить" onClick={(event) => { event.stopPropagation(); game()?.nudgeZoom(4); }}>−</button>
+        <button type="button" aria-label="Приблизить" onPointerDown={(event) => { event.stopPropagation(); event.preventDefault(); game()?.nudgeZoom(-4); }}>+</button>
+        <button type="button" aria-label="Отдалить" onPointerDown={(event) => { event.stopPropagation(); event.preventDefault(); game()?.nudgeZoom(4); }}>−</button>
       </div>
       <div className="touch-menu">
         <button type="button" onClick={(event) => { event.stopPropagation(); useUi.getState().setInventoryOpen(true); }}>Сумка</button>
@@ -163,9 +150,17 @@ export const MobileControls = () => {
         >{flying ? '▼' : '▾'}</button>
         <button
           type="button"
+          className="mc-break"
+          aria-label="Ломать"
+          onPointerDown={(event) => { event.stopPropagation(); event.preventDefault(); game()?.setBreaking(true); }}
+          onPointerUp={() => game()?.setBreaking(false)}
+          onPointerCancel={() => game()?.setBreaking(false)}
+        >✕</button>
+        <button
+          type="button"
           className="mc-place"
           aria-label={block?.name ?? 'Поставить блок'}
-          onPointerDown={(event) => { event.stopPropagation(); game()?.setPlacing(true); }}
+          onPointerDown={(event) => { event.stopPropagation(); event.preventDefault(); game()?.setPlacing(true); }}
           onPointerUp={() => game()?.setPlacing(false)}
           onPointerCancel={() => game()?.setPlacing(false)}
         >

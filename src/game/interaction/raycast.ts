@@ -18,6 +18,7 @@ export const raycastVoxel = (
   maxDist: number,
   getBlock: (x: number, y: number, z: number) => number,
   canHit: (id: number) => boolean,
+  minDist = 0,
 ): RayHit | null => {
   const len = Math.hypot(dx, dy, dz) || 1;
   const dirX = dx / len;
@@ -42,7 +43,7 @@ export const raycastVoxel = (
   let dist = 0;
   for (let i = 0; i < 256; i += 1) {
     const id = getBlock(x, y, z);
-    if (i > 0 && canHit(id)) return { x, y, z, nx, ny, nz, distance: dist };
+    if (i > 0 && dist >= minDist && canHit(id)) return { x, y, z, nx, ny, nz, distance: dist };
     if (tMaxX < tMaxY && tMaxX < tMaxZ) {
       if (tMaxX > maxDist) return null;
       x += stepX;

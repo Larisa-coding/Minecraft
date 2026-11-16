@@ -90,6 +90,7 @@ export class GameEngine {
   private breakKey = '';
   private actionCooldown = 0;
   private placeCooldown = 0;
+  private placeLock = 0;
   private jumpHeld = false;
   private touchForward = 0;
   private touchStrafe = 0;
@@ -330,7 +331,7 @@ export class GameEngine {
       toggleSprint: () => { this.sprintLatch = !this.sprintLatch; },
       setSneak: (value) => { this.touchSneak = value; },
       setBreaking: (value) => { this.breaking = value; if (!value) this.breakTime = 0; },
-      setPlacing: (value) => { this.placing = value; if (value) { this.tryPlace(false); this.placeCooldown = 0.28; } },
+      setPlacing: (value) => { this.placing = value; if (value) { this.tryPlace(false); this.placeCooldown = 0.5; } },
       placeAt: (x, y) => this.placeAt(x, y),
       nudgeZoom: (amount) => this.nudgeZoom(amount),
       toggleFly: () => this.toggleFly(),
@@ -397,21 +398,21 @@ export class GameEngine {
     };
     this.onKeyUp = (event) => { this.keys.delete(event.code); };
     this.onMouseDown = (event) => {
-      if (this.uiBlocked()) return;
+      if (this.uiBlocked() || event.target !== this.canvas) return;
       if (this.viewDistance >= 1 && document.pointerLockElement !== this.canvas) {
         this.press = { x: event.clientX, y: event.clientY, button: event.button, moved: 0 };
         return;
       }
       if (document.pointerLockElement !== this.canvas) return;
       if (event.button === 0) { this.breaking = true; this.actionCooldown = 0; }
-      if (event.button === 2) { this.placing = true; this.tryPlace(false); this.placeCooldown = 0.28; }
+      if (event.button === 2) { this.placing = true; this.tryPlace(false); this.placeCooldown = 0.5; }
     };
     this.onMouseUp = (event) => {
-      if (this.press) {
+      if (this.press && event.target === this.canvas) {
         const moved = Math.hypot(event.clientX - this.press.x, event.clientY - this.press.y);
         if (moved < 12 && (this.press.button === 0 || this.press.button === 2)) this.placeAt(event.clientX, event.clientY);
-        this.press = null;
       }
+      this.press = null;
       if (event.button === 0) { this.breaking = false; this.breakTime = 0; }
       if (event.button === 2) this.placing = false;
     };
@@ -547,7 +548,9 @@ export class GameEngine {
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(ndc, this.camera);
     const { origin, direction } = raycaster.ray;
-    return raycastVoxel(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z, reach, (x, y, z) => this.world.getBlock(x, y, z), (id) => id !== AIR);
+    const eye = this.eye();
+    const minDist = Math.max(0, origin.distanceTo(eye) - 0.35);
+    return raycastVoxel(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z, reach, (x, y, z) => this.world.getBlock(x, y, z), (id) => id !== AIR, minDist);
   }
 
   private placeAt(x: number, y: number): void {
@@ -783,6 +786,7 @@ export class GameEngine {
   }
 
   private tryPlace(quiet: boolean): void {
+    if (!quiet && performance.now() < this.placeLock) return;
     if (!this.hit || this.uiBlocked()) return;
     const stack = this.slots[this.slot];
     if (!stack || stack.count <= 0 || stack.id === 0) { if (!quiet) useUi.getState().pushToast('Нет подходящего блока'); return; }
@@ -803,6 +807,7 @@ export class GameEngine {
       this.lastPlace = pos;
     }
     if (!placed) { if (!quiet) useUi.getState().pushToast('Невозможно установить здесь'); return; }
+    this.placeLock = performance.now() + 320;
     if (this.save.mode === 'survival') {
       this.slots = consumeFromSlot(this.slots, this.slot, placed);
       useUi.getState().setSlots(this.slots);
@@ -828,8 +833,9 @@ export class GameEngine {
 
   private updateTarget(): void {
     if (!this.ready || this.uiBlocked()) { this.hit = null; this.highlight.visible = false; this.preview.visible = false; return; }
-    const rect = this.canvas.getBoundingClientRect();
-    this.hit = this.rayFromScreen(rect.left + rect.width / 2, rect.top + rect.height / 2, this.reach());
+    const eye = this.eye();
+    const look = lookOf(this.yaw, this.pitch);
+    this.hit = raycastVoxel(eye.x, eye.y, eye.z, look.x, look.y, look.z, this.reach(), (x, y, z) => this.world.getBlock(x, y, z), (id) => id !== AIR);
     if (!this.hit) {
       this.highlight.visible = false;
       this.preview.visible = false;

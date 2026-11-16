@@ -143,22 +143,25 @@ h2 { margin: 0 0 8px; font-size: 28px; }
 .portrait { top: 62px; left: max(10px, env(safe-area-inset-left)); transform: none; max-width: 150px; font-size: 12px; padding: 8px 10px; }
 
 .touch-ui { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
-.touch-look { position: absolute; inset: 0 0 76px 0; pointer-events: auto; touch-action: none; }
-.stick-zone { position: absolute; left: 0; top: 0; bottom: 76px; width: 46%; pointer-events: auto; touch-action: none; }
+.touch-look { position: absolute; inset: 56px 0 76px 0; z-index: 1; pointer-events: auto; touch-action: none; }
+.stick-zone { position: absolute; left: 0; top: 56px; bottom: 76px; width: 46%; z-index: 2; pointer-events: auto; touch-action: none; }
 .stick { position: absolute; left: max(78px, calc(env(safe-area-inset-left) + 72px)); bottom: max(168px, calc(env(safe-area-inset-bottom) + 148px)); width: 136px; height: 136px; margin: 0 0 -68px -68px; border-radius: 50%; background: rgba(255,255,255,.08); border: 2px solid rgba(244,241,232,.35); pointer-events: none; opacity: .72; }
 .stick.edge { border-color: var(--sand); }
 .stick i { position: absolute; left: 46px; top: 46px; width: 44px; height: 44px; border-radius: 50%; background: rgba(217, 199, 163, .9); }
-.zoom-pad { position: absolute; left: max(10px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); display: flex; gap: 6px; pointer-events: auto; }
-.zoom-pad button, .touch-menu button, .mc-pad button { margin: 0; padding: 0; appearance: none; border: 1px solid var(--line); background: var(--elev); color: var(--text); font-weight: 700; }
-.zoom-pad button { width: 40px; height: 40px; border-radius: 12px; font-size: 20px; }
-.touch-menu { position: absolute; right: max(8px, env(safe-area-inset-right)); top: max(10px, env(safe-area-inset-top)); display: flex; gap: 6px; pointer-events: auto; }
-.touch-menu button { height: 36px; padding: 0 10px; border-radius: 12px; font-size: 12px; }
-.mc-pad { position: absolute; right: max(8px, env(safe-area-inset-right)); bottom: max(84px, calc(env(safe-area-inset-bottom) + 76px)); width: 176px; height: 158px; pointer-events: none; }
-.mc-pad button { position: absolute; border-radius: 50%; pointer-events: auto; display: grid; place-items: center; }
-.mc-jump { right: 0; bottom: 0; width: 78px; height: 78px; font-size: 26px; background: rgba(47, 107, 69, .82); }
-.mc-place { right: 82px; bottom: 6px; width: 68px; height: 68px; }
-.mc-place img { width: 34px; height: 34px; image-rendering: pixelated; pointer-events: none; }
-.mc-sneak { right: 18px; bottom: 86px; width: 52px; height: 52px; font-size: 18px; }
+.zoom-pad { position: absolute; left: max(10px, env(safe-area-inset-left)); top: max(8px, env(safe-area-inset-top)); display: flex; gap: 6px; z-index: 8; pointer-events: auto; }
+.zoom-pad button, .touch-menu button, .mc-pad button { margin: 0; padding: 0; appearance: none; border: 1px solid var(--line); background: var(--elev); color: var(--text); font-weight: 700; touch-action: manipulation; }
+.zoom-pad button { width: 48px; height: 44px; border-radius: 12px; font-size: 22px; }
+.touch-menu { position: absolute; right: max(8px, env(safe-area-inset-right)); top: max(8px, env(safe-area-inset-top)); display: flex; gap: 6px; z-index: 8; pointer-events: auto; }
+.touch-menu button { height: 44px; padding: 0 12px; border-radius: 12px; font-size: 12px; }
+.mc-pad { position: absolute; right: max(8px, env(safe-area-inset-right)); bottom: max(84px, calc(env(safe-area-inset-bottom) + 76px)); display: grid; grid-template-columns: 72px 78px; grid-template-rows: 56px 78px; gap: 8px; z-index: 8; pointer-events: auto; }
+.mc-pad button { border-radius: 50%; display: grid; place-items: center; }
+.mc-place { grid-column: 1; grid-row: 1; width: 64px; height: 56px; justify-self: center; }
+.mc-sneak { grid-column: 2; grid-row: 1; width: 56px; height: 56px; justify-self: center; font-size: 18px; }
+.mc-break { grid-column: 1; grid-row: 2; width: 72px; height: 72px; justify-self: center; font-size: 22px; }
+.mc-jump { grid-column: 2; grid-row: 2; width: 78px; height: 78px; justify-self: center; font-size: 26px; }
+.mc-pad button.mc-break { background: rgba(157, 59, 59, .92); }
+.mc-pad button.mc-jump { background: rgba(47, 107, 69, .92); }
+.mc-place img { width: 32px; height: 32px; image-rendering: pixelated; pointer-events: none; }
 .mc-sneak.on, .stick.edge { box-shadow: inset 0 0 0 2px var(--sand); }
 .fly-flag { position: absolute; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%); background: var(--elev); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 12px; }
 
@@ -178,8 +181,8 @@ h2 { margin: 0 0 8px; font-size: 28px; }
   .hint { max-width: min(220px, calc(100% - 120px)); }
 }
 @media (max-height: 430px) {
-  .mc-pad { bottom: 68px; transform: scale(.86); transform-origin: bottom right; }
-  .touch-look, .stick-zone { bottom: 64px; }
+  .mc-pad { bottom: 68px; transform: scale(.9); transform-origin: bottom right; }
+  .touch-look, .stick-zone { top: 50px; bottom: 64px; }
   .stick { bottom: 132px; }
 }
 @media (max-width: 380px) {
