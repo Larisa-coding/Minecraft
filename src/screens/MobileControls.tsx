@@ -1,5 +1,7 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { getBlockDef } from '../game/blocks/registry';
 import { game } from '../game/engine/api';
+import { iconUrl } from '../game/rendering/materials';
 import { useUi } from '../store/uiStore';
 
 const rootPoint = (event: { clientX: number; clientY: number; currentTarget: EventTarget }) => {
@@ -11,26 +13,44 @@ const rootPoint = (event: { clientX: number; clientY: number; currentTarget: Eve
   };
 };
 
+const LOOK_SLOP = 14;
+
 export const MobileControls = () => {
-  const mode = useUi((state) => state.hud.mode);
   const flying = useUi((state) => state.hud.flying);
-  const sprinting = useUi((state) => state.hud.sprinting);
+  const slot = useUi((state) => state.hud.slot);
+  const slots = useUi((state) => state.slots);
+  const block = getBlockDef(slots[slot]?.id ?? 0);
+  const [sneaking, setSneaking] = useState(false);
   const stick = useRef<HTMLDivElement>(null);
   const knob = useRef<HTMLElement>(null);
   const origin = useRef({ x: 0, y: 0, id: -1 });
-  const look = useRef({ x: 0, y: 0, id: -1, moved: 0 });
-  const pinch = useRef<{ dist: number; pointers: Map<number, { x: number; y: number }> }>({ dist: 0, pointers: new Map() });
+  const look = useRef({ x: 0, y: 0, id: -1, moved: 0, timer: 0 });
+
+  useEffect(() => {
+    if (!flying) return;
+    setSneaking(false);
+    game()?.setSneak(false);
+  }, [flying]);
 
   const moveKnob = (x: number, y: number) => {
     if (knob.current) knob.current.style.transform = `translate(${x}px, ${y}px)`;
   };
 
-  const pinchDistance = () => {
-    const points = [...pinch.current.pointers.values()];
-    if (points.length < 2) return 0;
-    const [a, b] = points;
-    if (!a || !b) return 0;
-    return Math.hypot(a.x - b.x, a.y - b.y);
+  const parkStick = () => {
+    const node = stick.current;
+    if (!node) return;
+    node.style.left = '';
+    node.style.top = '';
+    node.style.bottom = '';
+    node.style.margin = '';
+    node.classList.remove('edge');
+  };
+
+  const stopBreak = () => {
+    window.clearTimeout(look.current.timer);
+    look.current.timer = 0;
+    look.current.id = -1;
+    game()?.setBreaking(false);
   };
 
   return (
@@ -38,42 +58,28 @@ export const MobileControls = () => {
       <div
         className="touch-look"
         onPointerDown={(event) => {
-          pinch.current.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-          if (pinch.current.pointers.size === 1) {
-            look.current = { x: event.clientX, y: event.clientY, id: event.pointerId, moved: 0 };
-          }
+          if (look.current.id !== -1) return;
+          look.current = { x: event.clientX, y: event.clientY, id: event.pointerId, moved: 0, timer: 0 };
           event.currentTarget.setPointerCapture(event.pointerId);
+          const pointer = event.pointerId;
+          look.current.timer = window.setTimeout(() => {
+            if (look.current.id === pointer && look.current.moved < LOOK_SLOP) game()?.setBreaking(true);
+          }, 40);
         }}
         onPointerMove={(event) => {
-          if (!pinch.current.pointers.has(event.pointerId)) return;
-          pinch.current.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-          if (pinch.current.pointers.size >= 2) {
-            const dist = pinchDistance();
-            if (pinch.current.dist > 0) game()?.nudgeZoom((pinch.current.dist - dist) * 0.08);
-            pinch.current.dist = dist;
-            look.current.moved = 99;
-            return;
-          }
           if (look.current.id !== event.pointerId) return;
           const dx = event.clientX - look.current.x;
           const dy = event.clientY - look.current.y;
           look.current.moved += Math.hypot(dx, dy);
-          if (Math.hypot(dx, dy) < 0.6) return;
-          game()?.addLook(dx, dy);
           look.current.x = event.clientX;
           look.current.y = event.clientY;
+          if (look.current.moved < LOOK_SLOP) return;
+          window.clearTimeout(look.current.timer);
+          game()?.setBreaking(false);
+          game()?.addLook(dx, dy);
         }}
-        onPointerUp={(event) => {
-          pinch.current.pointers.delete(event.pointerId);
-          pinch.current.dist = 0;
-          if (look.current.id === event.pointerId && look.current.moved < 12) game()?.placeAt(event.clientX, event.clientY);
-          if (look.current.id === event.pointerId) look.current.id = -1;
-        }}
-        onPointerCancel={(event) => {
-          pinch.current.pointers.delete(event.pointerId);
-          pinch.current.dist = 0;
-          if (look.current.id === event.pointerId) look.current.id = -1;
-        }}
+        onPointerUp={stopBreak}
+        onPointerCancel={stopBreak}
       />
       <div
         className="stick-zone"
@@ -84,34 +90,47 @@ export const MobileControls = () => {
           if (stick.current) {
             stick.current.style.left = `${point.x}px`;
             stick.current.style.top = `${point.y}px`;
-            stick.current.style.opacity = '1';
+            stick.current.style.bottom = 'auto';
+            stick.current.style.margin = '-68px 0 0 -68px';
           }
+          moveKnob(0, 0);
         }}
         onPointerMove={(event) => {
           if (origin.current.id !== event.pointerId) return;
           const dx = event.clientX - origin.current.x;
           const dy = event.clientY - origin.current.y;
           const len = Math.hypot(dx, dy);
-          if (len < 14) {
+          const radius = 58;
+          if (len < 16) {
             moveKnob(0, 0);
+            stick.current?.classList.remove('edge');
             game()?.setMove(0, 0);
+            game()?.setSprint(false);
             return;
           }
-          const scale = Math.min(1, (len - 14) / 54);
-          moveKnob((dx / len) * scale * 36, (dy / len) * scale * 36);
-          game()?.setMove((dx / len) * scale, (-dy / len) * scale);
+          const scale = Math.min(1, (len - 16) / radius);
+          const nx = dx / len;
+          const ny = dy / len;
+          moveKnob(nx * scale * 42, ny * scale * 42);
+          const forward = -ny * scale;
+          game()?.setMove(nx * scale, forward);
+          const sprint = scale >= 0.9 && forward > 0.45;
+          stick.current?.classList.toggle('edge', sprint);
+          game()?.setSprint(sprint);
         }}
         onPointerUp={() => {
           origin.current.id = -1;
           moveKnob(0, 0);
-          if (stick.current) stick.current.style.opacity = '0';
+          parkStick();
           game()?.setMove(0, 0);
+          game()?.setSprint(false);
         }}
         onPointerCancel={() => {
           origin.current.id = -1;
           moveKnob(0, 0);
-          if (stick.current) stick.current.style.opacity = '0';
+          parkStick();
           game()?.setMove(0, 0);
+          game()?.setSprint(false);
         }}
       />
       <div className="stick" ref={stick}><i ref={knob} /></div>
@@ -119,15 +138,47 @@ export const MobileControls = () => {
         <button type="button" aria-label="Приблизить" onClick={(event) => { event.stopPropagation(); game()?.nudgeZoom(-4); }}>+</button>
         <button type="button" aria-label="Отдалить" onClick={(event) => { event.stopPropagation(); game()?.nudgeZoom(4); }}>−</button>
       </div>
-      <button type="button" className="pause-fab" onClick={(event) => { event.stopPropagation(); game()?.pause(); }}>Пауза</button>
-      <div className="actions">
-        <button type="button" onPointerDown={(event) => { event.stopPropagation(); game()?.setJump(true); }} onPointerUp={() => game()?.setJump(false)} onPointerCancel={() => game()?.setJump(false)}>{flying ? 'Вверх' : 'Прыжок'}</button>
-        <button type="button" onPointerDown={(event) => { event.stopPropagation(); game()?.setBreaking(true); }} onPointerUp={() => game()?.setBreaking(false)} onPointerLeave={() => game()?.setBreaking(false)} onPointerCancel={() => game()?.setBreaking(false)}>Ломать</button>
-        <button type="button" onPointerDown={(event) => { event.stopPropagation(); game()?.setPlacing(true); }} onPointerUp={() => game()?.setPlacing(false)} onPointerCancel={() => game()?.setPlacing(false)}>Ставить</button>
-        <button type="button" className={sprinting ? 'on' : ''} onClick={(event) => { event.stopPropagation(); game()?.toggleSprint(); }}>Бег</button>
-        <button type="button" onPointerDown={(event) => { event.stopPropagation(); game()?.setSneak(true); }} onPointerUp={() => game()?.setSneak(false)} onPointerLeave={() => game()?.setSneak(false)} onPointerCancel={() => game()?.setSneak(false)}>{flying ? 'Вниз' : 'Присед'}</button>
+      <div className="touch-menu">
         <button type="button" onClick={(event) => { event.stopPropagation(); useUi.getState().setInventoryOpen(true); }}>Сумка</button>
-        {mode === 'creative' && <button type="button" className={flying ? 'on' : ''} onClick={(event) => { event.stopPropagation(); game()?.toggleFly(); }}>Полёт</button>}
+        <button type="button" onClick={(event) => { event.stopPropagation(); game()?.pause(); }}>Пауза</button>
+      </div>
+      <div className="mc-pad">
+        <button
+          type="button"
+          className={sneaking ? 'mc-sneak on' : 'mc-sneak'}
+          aria-label={flying ? 'Вниз' : 'Присед'}
+          onPointerDown={(event) => {
+            event.stopPropagation();
+            if (flying) game()?.setSneak(true);
+          }}
+          onPointerUp={() => { if (flying) game()?.setSneak(false); }}
+          onPointerCancel={() => { if (flying) game()?.setSneak(false); }}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (flying) return;
+            const next = !sneaking;
+            setSneaking(next);
+            game()?.setSneak(next);
+          }}
+        >{flying ? '▼' : '▾'}</button>
+        <button
+          type="button"
+          className="mc-place"
+          aria-label={block?.name ?? 'Поставить блок'}
+          onPointerDown={(event) => { event.stopPropagation(); game()?.setPlacing(true); }}
+          onPointerUp={() => game()?.setPlacing(false)}
+          onPointerCancel={() => game()?.setPlacing(false)}
+        >
+          {block && <img src={iconUrl(block.icon)} alt="" />}
+        </button>
+        <button
+          type="button"
+          className="mc-jump"
+          aria-label={flying ? 'Вверх' : 'Прыжок'}
+          onPointerDown={(event) => { event.stopPropagation(); game()?.setJump(true); }}
+          onPointerUp={() => game()?.setJump(false)}
+          onPointerCancel={() => game()?.setJump(false)}
+        >▲</button>
       </div>
     </div>
   );

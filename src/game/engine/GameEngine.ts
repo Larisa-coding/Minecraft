@@ -99,6 +99,7 @@ export class GameEngine {
   private lookY = 0;
   private press: { x: number; y: number; button: number; moved: number } | null = null;
   private lastSpace = 0;
+  private lastJumpTap = 0;
   private lastForwardTap = 0;
   private lastPlace: BlockPos | null = null;
   private hit: RayHit | null = null;
@@ -317,7 +318,14 @@ export class GameEngine {
     return {
       setMove: (strafe, forward) => { this.touchStrafe = strafe; this.touchForward = forward; },
       addLook: (dx, dy) => { this.lookX += dx; this.lookY += dy; },
-      setJump: (value) => { this.touchJump = value; },
+      setJump: (value) => {
+        if (value && this.save.mode === 'creative') {
+          const now = performance.now();
+          if (now - this.lastJumpTap < 300) this.toggleFly();
+          this.lastJumpTap = now;
+        }
+        this.touchJump = value;
+      },
       setSprint: (value) => { this.sprintLatch = value; },
       toggleSprint: () => { this.sprintLatch = !this.sprintLatch; },
       setSneak: (value) => { this.touchSneak = value; },
@@ -625,9 +633,9 @@ export class GameEngine {
     }
     const sense = this.touch ? this.settings.controls.touchSensitivity : 1;
     if (this.lookX || this.lookY) {
-      this.yaw -= this.lookX * 0.0036 * sense;
+      this.yaw -= this.lookX * 0.0025 * sense;
       const invert = this.settings.controls.invertY ? -1 : 1;
-      this.pitch = THREE.MathUtils.clamp(this.pitch - this.lookY * 0.0036 * sense * invert, -1.52, 1.52);
+      this.pitch = THREE.MathUtils.clamp(this.pitch - this.lookY * 0.0025 * sense * invert, -1.52, 1.52);
       this.lookX = 0;
       this.lookY = 0;
     }

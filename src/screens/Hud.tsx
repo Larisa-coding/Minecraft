@@ -12,6 +12,7 @@ const pips = (value: number, kind: 'heart' | 'food') => Array.from({ length: 10 
 
 export const Hud = () => {
   const hud = useUi((state) => state.hud);
+  const touch = useUi((state) => state.worldUi.touch);
   const slots = useUi((state) => state.slots);
   const ui = useSettings((state) => state.ui);
   const scale = { transform: `translateX(-50%) scale(${ui.hudScale})`, transformOrigin: 'bottom center' } as const;
@@ -30,7 +31,7 @@ export const Hud = () => {
       {ui.showFps && <div className="fps">{Math.round(hud.fps)} FPS</div>}
       <div className="save-ind">{hud.save === 'saving' ? 'Сохранение...' : hud.save === 'error' ? 'Ошибка сохранения' : 'Сохранено'}</div>
       {(hud.flying || hud.sprinting || hud.zoom >= 1) && <div className="move-state">{[hud.flying ? (hud.sprinting ? 'Быстрый полёт' : 'Полёт') : hud.sprinting ? 'Бег' : '', hud.zoom >= 1 ? `Дальше ${Math.round(hud.zoom)}` : ''].filter(Boolean).join(' · ')}</div>}
-      {ui.showHints && <div className="hint">{hud.mode === 'creative' ? 'Колесо или − + отдаляют · клик по миру ставит блок · F полёт' : 'Колесо или − + отдаляют · клик по миру ставит блок · F ягоды'}</div>}
+      {ui.showHints && !touch && <div className="hint">{hud.mode === 'creative' ? 'Колесо отдаляет вид · клик ставит блок в точку · F полёт' : 'Колесо отдаляет вид · клик ставит блок в точку · F ягоды'}</div>}
       {ui.showHotbar && (
         <div className="hotbar" style={scale}>
           {slots.slice(0, 9).map((slot, index) => {
