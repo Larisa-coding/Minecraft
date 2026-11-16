@@ -68,6 +68,7 @@ export const SettingsScreen = () => {
             <Slider label="Скорость ходьбы" min={0.6} max={1.6} step={0.05} value={settings.controls.moveSpeed} onChange={(value) => patch((current) => ({ ...current, controls: { ...current.controls, moveSpeed: value } }))} />
             <Slider label="Скорость полёта" min={6} max={28} step={1} value={settings.controls.flySpeed} onChange={(value) => patch((current) => ({ ...current, controls: { ...current.controls, flySpeed: value } }))} />
             <label className="row"><input type="checkbox" checked={settings.controls.invertY} onChange={(event) => patch((current) => ({ ...current, controls: { ...current.controls, invertY: event.target.checked } }))} /> Инверсия вертикальной оси</label>
+            <p className="meta">Бег: Ctrl или двойное W. Присед: удержать Shift. Полёт: F. Ходьба работает без захвата мыши, камера — после клика по миру.</p>
           </div>
         )}
         {tab === 'audio' && (

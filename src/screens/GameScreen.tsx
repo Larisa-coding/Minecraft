@@ -21,6 +21,7 @@ export const GameScreen = () => {
   const creative = useUi((state) => state.creativeOpen);
   const settingsOpen = useUi((state) => state.settingsOpen);
   const helpOpen = useUi((state) => state.helpOpen);
+  const zoom = useUi((state) => state.hud.zoom);
   const [portrait, setPortrait] = useState(false);
 
   useEffect(() => {
@@ -65,8 +66,8 @@ export const GameScreen = () => {
       {worldUi.ready && <Hud />}
       {worldUi.ready && worldUi.touch && !paused && !inventory && !creative && <MobileControls />}
       {portrait && worldUi.ready && <div className="portrait">Горизонтально удобнее, но играть можно и так.</div>}
-      {worldUi.ready && !worldUi.pointerLocked && !worldUi.touch && !paused && !inventory && !creative && !helpOpen && !settingsOpen && (
-        <div className="lock-hint">Кликните, чтобы управлять камерой</div>
+      {worldUi.ready && zoom < 1 && !worldUi.pointerLocked && !worldUi.touch && !paused && !inventory && !creative && !helpOpen && !settingsOpen && (
+        <div className="lock-hint">Кликните по миру, чтобы крутить камеру. Колесо отдаляет вид, и тогда клик ставит блок в эту точку.</div>
       )}
       {paused && <PauseMenu />}
       {inventory && <InventoryScreen />}

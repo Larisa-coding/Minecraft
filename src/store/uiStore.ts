@@ -10,6 +10,7 @@ export interface HudState {
   hunger: number;
   slot: number;
   flying: boolean;
+  sprinting: boolean;
   blockName: string;
   save: SaveStatus;
   fps: number;
@@ -19,6 +20,7 @@ export interface HudState {
   mode: GameMode;
   breaking: number;
   camera: 'first' | 'third';
+  zoom: number;
 }
 
 export interface WorldUi {
@@ -76,6 +78,7 @@ const hud: HudState = {
   hunger: 20,
   slot: 0,
   flying: false,
+  sprinting: false,
   blockName: '',
   save: 'idle',
   fps: 0,
@@ -85,6 +88,7 @@ const hud: HudState = {
   mode: 'creative',
   breaking: 0,
   camera: 'first',
+  zoom: 0,
 };
 
 const worldUi: WorldUi = {

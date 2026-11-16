@@ -76,12 +76,14 @@ export class GameEngine {
   private weather: 'clear' | 'rain';
   private lineMode: boolean;
   private cameraMode: 'first' | 'third';
+  private viewDistance = 0;
   private flying: boolean;
+  private sprintLatch = false;
+  private sprinting = false;
   private ready = false;
   private paused = false;
   private pointerLocked = false;
   private disposed = false;
-  private suppressUnlock = false;
   private breaking = false;
   private placing = false;
   private breakTime = 0;
@@ -92,11 +94,12 @@ export class GameEngine {
   private touchForward = 0;
   private touchStrafe = 0;
   private touchJump = false;
-  private touchSprint = false;
   private touchSneak = false;
   private lookX = 0;
   private lookY = 0;
+  private press: { x: number; y: number; button: number; moved: number } | null = null;
   private lastSpace = 0;
+  private lastForwardTap = 0;
   private lastPlace: BlockPos | null = null;
   private hit: RayHit | null = null;
   private dirty = false;
@@ -151,6 +154,7 @@ export class GameEngine {
     this.weather = save.weather;
     this.lineMode = save.lineMode;
     this.cameraMode = save.player.camera;
+    this.viewDistance = save.player.camera === 'third' ? 8 : 0;
     this.flying = save.mode === 'creative' && save.player.flying;
     let renderer: THREE.WebGLRenderer;
     try {
@@ -314,10 +318,13 @@ export class GameEngine {
       setMove: (strafe, forward) => { this.touchStrafe = strafe; this.touchForward = forward; },
       addLook: (dx, dy) => { this.lookX += dx; this.lookY += dy; },
       setJump: (value) => { this.touchJump = value; },
-      setSprint: (value) => { this.touchSprint = value; },
+      setSprint: (value) => { this.sprintLatch = value; },
+      toggleSprint: () => { this.sprintLatch = !this.sprintLatch; },
       setSneak: (value) => { this.touchSneak = value; },
       setBreaking: (value) => { this.breaking = value; if (!value) this.breakTime = 0; },
       setPlacing: (value) => { this.placing = value; if (value) { this.tryPlace(false); this.placeCooldown = 0.28; } },
+      placeAt: (x, y) => this.placeAt(x, y),
+      nudgeZoom: (amount) => this.nudgeZoom(amount),
       toggleFly: () => this.toggleFly(),
       selectSlot: (index) => this.selectSlot(index),
       setSlots: (slots) => { this.slots = cloneSlots(slots); useUi.getState().setSlots(this.slots); this.dirty = true; },
@@ -345,7 +352,7 @@ export class GameEngine {
     this.onKeyDown = (event) => {
       if (this.disposed || typing(event)) return;
       this.keys.add(event.code);
-      if (['Space', 'KeyE', 'F5', 'F3'].includes(event.code)) event.preventDefault();
+      if (['Space', 'KeyE', 'F5', 'F3', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.code)) event.preventDefault();
       if (event.code === 'Escape') {
         event.preventDefault();
         this.handleEscape();
@@ -358,8 +365,19 @@ export class GameEngine {
       }
       if (event.code === 'KeyE') this.openInventory();
       if (event.code === 'KeyC' && this.save.mode === 'creative') this.openCreative();
-      if (event.code === 'KeyF') this.eat();
+      if (event.code === 'KeyF') {
+        if (this.save.mode === 'creative') this.toggleFly();
+        else this.eat();
+      }
+      if (!event.repeat && (event.code === 'ControlLeft' || event.code === 'ControlRight')) this.sprintLatch = !this.sprintLatch;
+      if (!event.repeat && (event.code === 'KeyW' || event.code === 'ArrowUp')) {
+        const now = performance.now();
+        if (now - this.lastForwardTap < 260) this.sprintLatch = true;
+        this.lastForwardTap = now;
+      }
       if (event.code === 'F5') this.toggleCamera();
+      if (event.code === 'Minus' || event.code === 'NumpadSubtract') this.nudgeZoom(2.5);
+      if (event.code === 'Equal' || event.code === 'NumpadAdd') this.nudgeZoom(-2.5);
       if (event.code === 'F3') {
         useSettings.getState().patch((settings) => ({ ...settings, ui: { ...settings.ui, showFps: !settings.ui.showFps } }));
       }
@@ -371,33 +389,46 @@ export class GameEngine {
     };
     this.onKeyUp = (event) => { this.keys.delete(event.code); };
     this.onMouseDown = (event) => {
-      if (document.pointerLockElement !== this.canvas || this.uiBlocked()) return;
+      if (this.uiBlocked()) return;
+      if (this.viewDistance >= 1 && document.pointerLockElement !== this.canvas) {
+        this.press = { x: event.clientX, y: event.clientY, button: event.button, moved: 0 };
+        return;
+      }
+      if (document.pointerLockElement !== this.canvas) return;
       if (event.button === 0) { this.breaking = true; this.actionCooldown = 0; }
       if (event.button === 2) { this.placing = true; this.tryPlace(false); this.placeCooldown = 0.28; }
     };
     this.onMouseUp = (event) => {
+      if (this.press) {
+        const moved = Math.hypot(event.clientX - this.press.x, event.clientY - this.press.y);
+        if (moved < 12 && (this.press.button === 0 || this.press.button === 2)) this.placeAt(event.clientX, event.clientY);
+        this.press = null;
+      }
       if (event.button === 0) { this.breaking = false; this.breakTime = 0; }
       if (event.button === 2) this.placing = false;
     };
     this.onMouseMove = (event) => {
-      if (document.pointerLockElement !== this.canvas || this.uiBlocked()) return;
+      if (this.uiBlocked()) return;
       const sense = this.settings.controls.mouseSensitivity;
-      this.yaw -= event.movementX * 0.0022 * sense;
       const invert = this.settings.controls.invertY ? -1 : 1;
+      if (this.press && this.viewDistance >= 1 && document.pointerLockElement !== this.canvas) {
+        this.press.moved += Math.hypot(event.movementX, event.movementY);
+        this.yaw -= event.movementX * 0.004 * sense;
+        this.pitch = THREE.MathUtils.clamp(this.pitch - event.movementY * 0.004 * sense * invert, -1.52, 1.52);
+        return;
+      }
+      if (document.pointerLockElement !== this.canvas) return;
+      this.yaw -= event.movementX * 0.0022 * sense;
       this.pitch = THREE.MathUtils.clamp(this.pitch - event.movementY * 0.0022 * sense * invert, -1.52, 1.52);
     };
     this.onWheel = (event) => {
-      if (document.pointerLockElement !== this.canvas || this.uiBlocked()) return;
+      if (this.uiBlocked()) return;
       event.preventDefault();
-      const dir = event.deltaY > 0 ? 1 : -1;
-      this.selectSlot((this.slot + dir + 9) % 9);
+      this.nudgeZoom(event.deltaY > 0 ? 1.6 : -1.6);
     };
     this.onLock = () => {
-      const locked = document.pointerLockElement === this.canvas;
-      this.pointerLocked = locked;
-      useUi.getState().setWorldUi({ pointerLocked: locked });
-      if (!locked && !this.suppressUnlock && this.ready && !this.paused && !useUi.getState().inventoryOpen) this.pause();
-      this.suppressUnlock = false;
+      this.pointerLocked = document.pointerLockElement === this.canvas;
+      useUi.getState().setWorldUi({ pointerLocked: this.pointerLocked });
     };
     this.onHide = () => {
       void this.flush(true, false);
@@ -406,7 +437,7 @@ export class GameEngine {
     this.onContext = (event) => event.preventDefault();
     this.onClick = () => {
       audio.unlock();
-      if (!this.touch && this.ready && !this.uiBlocked()) void this.canvas.requestPointerLock();
+      if (!this.touch && this.ready && !this.uiBlocked() && this.viewDistance < 1) void this.canvas.requestPointerLock();
     };
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
@@ -437,7 +468,7 @@ export class GameEngine {
   }
 
   private controlActive(): boolean {
-    return !this.uiBlocked() && (this.pointerLocked || this.touch);
+    return !this.uiBlocked();
   }
 
   private pause(): void {
@@ -445,7 +476,8 @@ export class GameEngine {
     this.paused = true;
     this.breaking = false;
     this.placing = false;
-    this.suppressUnlock = true;
+    this.sprintLatch = false;
+    this.sprinting = false;
     if (document.pointerLockElement === this.canvas) document.exitPointerLock();
     useUi.getState().setPaused(true);
     void this.flush(true, false);
@@ -458,18 +490,16 @@ export class GameEngine {
     useUi.getState().setCreativeOpen(false);
     useUi.getState().setSettingsOpen(false);
     useUi.getState().setHelpOpen(false);
-    if (!this.touch) void this.canvas.requestPointerLock();
+    if (!this.touch && this.viewDistance < 1) void this.canvas.requestPointerLock();
   }
 
   private openInventory(): void {
     audio.inventory();
-    this.suppressUnlock = true;
     if (document.pointerLockElement === this.canvas) document.exitPointerLock();
     useUi.getState().setInventoryOpen(true);
   }
 
   private openCreative(): void {
-    this.suppressUnlock = true;
     if (document.pointerLockElement === this.canvas) document.exitPointerLock();
     useUi.getState().setCreativeOpen(true);
   }
@@ -484,9 +514,40 @@ export class GameEngine {
   }
 
   private toggleCamera(): void {
-    this.cameraMode = this.cameraMode === 'first' ? 'third' : 'first';
+    this.nudgeZoom(this.viewDistance >= 1 ? -this.viewDistance : 14);
+  }
+
+  private nudgeZoom(amount: number): void {
+    const next = THREE.MathUtils.clamp(this.viewDistance + amount, 0, 42);
+    if (next >= 1 && document.pointerLockElement === this.canvas) document.exitPointerLock();
+    this.viewDistance = next;
+    this.cameraMode = next >= 1 ? 'third' : 'first';
     this.dirty = true;
     this.publish(true);
+  }
+
+  private reach(): number {
+    return this.viewDistance >= 1 ? Math.min(56, this.viewDistance + 16) : REACH;
+  }
+
+  private rayFromScreen(clientX: number, clientY: number, reach: number): RayHit | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1,
+      -((clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1,
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, this.camera);
+    const { origin, direction } = raycaster.ray;
+    return raycastVoxel(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z, reach, (x, y, z) => this.world.getBlock(x, y, z), (id) => id !== AIR);
+  }
+
+  private placeAt(x: number, y: number): void {
+    if (this.uiBlocked() || !this.ready) return;
+    const hit = this.rayFromScreen(x, y, this.reach());
+    if (!hit) return;
+    this.hit = hit;
+    this.tryPlace(false);
   }
 
   private selectSlot(index: number): void {
@@ -517,8 +578,8 @@ export class GameEngine {
     else if (!this.uiBlocked()) this.simulate(dt);
     else this.body.vx = this.body.vz = 0;
     this.stream(this.ready ? 1 : 2);
-    this.updateTarget();
     this.updateVisuals(dt);
+    this.updateTarget();
     if (this.ready) {
       this.saveTimer += dt;
       this.positionTimer += dt;
@@ -564,14 +625,14 @@ export class GameEngine {
     }
     const sense = this.touch ? this.settings.controls.touchSensitivity : 1;
     if (this.lookX || this.lookY) {
-      this.yaw -= this.lookX * 0.0055 * sense;
+      this.yaw -= this.lookX * 0.0036 * sense;
       const invert = this.settings.controls.invertY ? -1 : 1;
-      this.pitch = THREE.MathUtils.clamp(this.pitch - this.lookY * 0.0055 * sense * invert, -1.52, 1.52);
+      this.pitch = THREE.MathUtils.clamp(this.pitch - this.lookY * 0.0036 * sense * invert, -1.52, 1.52);
       this.lookX = 0;
       this.lookY = 0;
     }
-    const forward = (this.keys.has('KeyW') ? 1 : 0) - (this.keys.has('KeyS') ? 1 : 0) + this.touchForward;
-    const strafe = (this.keys.has('KeyD') ? 1 : 0) - (this.keys.has('KeyA') ? 1 : 0) + this.touchStrafe;
+    const forward = (this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0) + this.touchForward;
+    const strafe = (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('ArrowLeft') ? 1 : 0) + this.touchStrafe;
     const fx = -Math.sin(this.yaw);
     const fz = -Math.cos(this.yaw);
     const rx = Math.cos(this.yaw);
@@ -580,16 +641,19 @@ export class GameEngine {
     let mz = fz * forward + rz * strafe;
     const mag = Math.hypot(mx, mz);
     if (mag > 1) { mx /= mag; mz /= mag; }
-    const sprint = !this.flying && (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || this.touchSprint);
-    const sneak = this.keys.has('ControlLeft') || this.keys.has('ControlRight') || this.touchSneak;
-    this.setHeight(sneak ? 1.45 : 1.78);
-    const speed = (this.flying ? this.settings.controls.flySpeed : 4.5 * this.settings.controls.moveSpeed * (sprint ? 1.55 : sneak ? 0.42 : 1));
+    const sneak = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || this.touchSneak;
+    if (sneak) this.sprintLatch = false;
+    if (!this.flying && forward <= 0.05 && this.sprinting) this.sprintLatch = false;
+    this.sprinting = this.sprintLatch && !sneak && (this.flying || forward > 0.15);
+    this.setHeight(sneak && !this.flying ? 1.45 : 1.78);
+    const pace = this.sprinting ? 1.75 : 1;
+    const speed = (this.flying ? this.settings.controls.flySpeed * (this.sprintLatch ? 1.65 : 1) : 4.5 * this.settings.controls.moveSpeed * (this.sprinting ? pace : sneak ? 0.42 : 1));
     this.body.vx = mx * speed;
     this.body.vz = mz * speed;
     this.body.flying = this.flying;
     const jump = this.keys.has('Space') || this.touchJump;
     if (this.flying) {
-      const up = (this.keys.has('Space') || this.touchJump ? 1 : 0) - (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 1 : 0);
+      const up = (this.keys.has('Space') || this.touchJump ? 1 : 0) - (sneak ? 1 : 0);
       this.body.vy = up * this.settings.controls.flySpeed;
     } else if (jump && this.body.onGround && !this.jumpHeld) {
       this.body.vy = JUMP_SPEED;
@@ -668,7 +732,7 @@ export class GameEngine {
   private updateBreaking(dt: number): void {
     if (!this.breaking || !this.hit) { this.breakTime = 0; return; }
     const id = this.world.getBlock(this.hit.x, this.hit.y, this.hit.z);
-    if (!isBreakable(this.hit.x, this.hit.y, this.hit.z, id) || this.hit.distance > REACH) {
+    if (!isBreakable(this.hit.x, this.hit.y, this.hit.z, id) || this.hit.distance > this.reach()) {
       this.breakTime = 0;
       return;
     }
@@ -756,9 +820,8 @@ export class GameEngine {
 
   private updateTarget(): void {
     if (!this.ready || this.uiBlocked()) { this.hit = null; this.highlight.visible = false; this.preview.visible = false; return; }
-    const eye = this.eye();
-    const look = lookOf(this.yaw, this.pitch);
-    this.hit = raycastVoxel(eye.x, eye.y, eye.z, look.x, look.y, look.z, REACH, (x, y, z) => this.world.getBlock(x, y, z), (id) => id !== AIR);
+    const rect = this.canvas.getBoundingClientRect();
+    this.hit = this.rayFromScreen(rect.left + rect.width / 2, rect.top + rect.height / 2, this.reach());
     if (!this.hit) {
       this.highlight.visible = false;
       this.preview.visible = false;
@@ -803,15 +866,15 @@ export class GameEngine {
     fog.color.copy(this.skyColors.fog);
     const distance = Math.min(renderDistanceChunks(this.settings.graphics.renderDistance), this.world.radius);
     fog.near = Math.max(12, (distance - 1.2) * 16);
-    fog.far = (distance + 0.35) * 16;
+    fog.far = Math.max((distance + 0.35) * 16, this.viewDistance + 32);
     const eye = this.eye();
     const eyeBlock = getBlockDef(this.world.getBlock(Math.floor(eye.x), Math.floor(eye.y), Math.floor(eye.z)));
     if (eyeBlock?.liquid) fog.color.set('#3d88b0');
     const look = lookOf(this.yaw, this.pitch);
-    if (this.cameraMode === 'third') {
+    if (this.viewDistance >= 0.35) {
       const back = look.clone().multiplyScalar(-1);
-      const clip = raycastVoxel(eye.x, eye.y, eye.z, back.x, back.y, back.z, 4.4, (x, y, z) => this.world.getBlock(x, y, z), isCollidable);
-      const dist = clip ? Math.max(0.85, clip.distance - 0.3) : 4.2;
+      const clip = raycastVoxel(eye.x, eye.y, eye.z, back.x, back.y, back.z, this.viewDistance + 0.6, (x, y, z) => this.world.getBlock(x, y, z), isCollidable);
+      const dist = clip ? Math.max(0.85, Math.min(this.viewDistance, clip.distance - 0.3)) : this.viewDistance;
       this.camera.position.copy(eye).addScaledVector(back, dist);
       this.camera.lookAt(eye);
       this.avatar.visible = true;
@@ -981,6 +1044,7 @@ export class GameEngine {
       hunger: this.hunger,
       slot: this.slot,
       flying: this.flying,
+      sprinting: this.sprinting,
       blockName,
       save: this.saving ? 'saving' : this.dirty ? 'saving' : 'saved',
       fps: this.fps,
@@ -990,6 +1054,7 @@ export class GameEngine {
       mode: this.save.mode,
       breaking: this.breakTime > 0 && this.hit ? Math.min(1, this.breakTime / (getBlockDef(this.world.getBlock(this.hit.x, this.hit.y, this.hit.z))?.hardness || 1)) : 0,
       camera: this.cameraMode,
+      zoom: this.viewDistance,
     });
     useUi.getState().setWorldUi({
       time: this.time,
