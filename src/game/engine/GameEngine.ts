@@ -555,7 +555,7 @@ export class GameEngine {
 
   private placeAt(x: number, y: number): void {
     if (this.uiBlocked() || !this.ready) return;
-    const hit = this.rayFromScreen(x, y, this.reach());
+    const hit = this.rayFromScreen(x, y, Math.max(this.reach(), 28));
     if (!hit) return;
     this.hit = hit;
     this.tryPlace(false);

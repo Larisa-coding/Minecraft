@@ -13,7 +13,7 @@ const rootPoint = (event: { clientX: number; clientY: number; currentTarget: Eve
   };
 };
 
-const LOOK_SLOP = 8;
+const TAP_SLOP = 18;
 
 export const MobileControls = () => {
   const flying = useUi((state) => state.hud.flying);
@@ -62,10 +62,14 @@ export const MobileControls = () => {
           look.current.moved += Math.hypot(dx, dy);
           look.current.x = event.clientX;
           look.current.y = event.clientY;
-          if (look.current.moved < LOOK_SLOP) return;
+          if (look.current.moved < TAP_SLOP) return;
           game()?.addLook(dx, dy);
         }}
-        onPointerUp={() => { look.current.id = -1; }}
+        onPointerUp={(event) => {
+          const tapped = look.current.id === event.pointerId && look.current.moved < TAP_SLOP;
+          look.current.id = -1;
+          if (tapped) game()?.placeAt(event.clientX, event.clientY);
+        }}
         onPointerCancel={() => { look.current.id = -1; }}
       />
       <div
