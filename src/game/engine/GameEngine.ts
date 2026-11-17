@@ -44,7 +44,7 @@ export class GameEngine {
   private settings: Settings;
   private renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(72, 1, 0.08, 700);
+  private readonly camera = new THREE.PerspectiveCamera(60, 1, 0.18, 700);
   private readonly materials: GameMaterials;
   private readonly sky: SkyDome;
   private readonly skyColors: SkyState;
@@ -115,6 +115,7 @@ export class GameEngine {
   private readonly touch: boolean;
   private unsub = () => {};
   private readonly onResize: () => void;
+  private resizeObserver: ResizeObserver | null = null;
   private onKeyDown: (event: KeyboardEvent) => void = () => {};
   private onKeyUp: (event: KeyboardEvent) => void = () => {};
   private onMouseDown: (event: MouseEvent) => void = () => {};
@@ -249,6 +250,9 @@ export class GameEngine {
     this.bindInput();
     this.onResize = () => this.resize();
     window.addEventListener('resize', this.onResize);
+    window.visualViewport?.addEventListener('resize', this.onResize);
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(this.canvas);
     this.unsub = useSettings.subscribe((state) => {
       this.settings = {
         graphics: state.graphics,
@@ -288,6 +292,8 @@ export class GameEngine {
     bindGame(null);
     this.unsub();
     window.removeEventListener('resize', this.onResize);
+    window.visualViewport?.removeEventListener('resize', this.onResize);
+    this.resizeObserver?.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('mousedown', this.onMouseDown);
@@ -527,7 +533,10 @@ export class GameEngine {
   }
 
   private nudgeZoom(amount: number): void {
-    const next = THREE.MathUtils.clamp(this.viewDistance + amount, 0, 42);
+    let next = this.viewDistance + amount;
+    if (amount > 0 && this.viewDistance < 1) next = 6;
+    if (amount < 0 && next < 2.5) next = 0;
+    next = THREE.MathUtils.clamp(next, 0, 36);
     if (next >= 1 && document.pointerLockElement === this.canvas) document.exitPointerLock();
     this.viewDistance = next;
     this.cameraMode = next >= 1 ? 'third' : 'first';
@@ -888,8 +897,15 @@ export class GameEngine {
     if (this.viewDistance >= 0.35) {
       const back = look.clone().multiplyScalar(-1);
       const clip = raycastVoxel(eye.x, eye.y, eye.z, back.x, back.y, back.z, this.viewDistance + 0.6, (x, y, z) => this.world.getBlock(x, y, z), isCollidable);
-      const dist = clip ? Math.max(0.85, Math.min(this.viewDistance, clip.distance - 0.3)) : this.viewDistance;
-      this.camera.position.copy(eye).addScaledVector(back, dist);
+      let dist = clip ? Math.max(1.35, Math.min(this.viewDistance, clip.distance - 0.65)) : this.viewDistance;
+      const pos = eye.clone().addScaledVector(back, dist);
+      for (let i = 0; i < 5; i += 1) {
+        const id = this.world.getBlock(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
+        if (!isCollidable(id)) break;
+        dist = Math.max(1.2, dist * 0.62);
+        pos.copy(eye).addScaledVector(back, dist);
+      }
+      this.camera.position.copy(pos);
       this.camera.lookAt(eye);
       this.avatar.visible = true;
       this.avatar.position.set(this.body.x, this.body.y, this.body.z);
@@ -1043,9 +1059,13 @@ export class GameEngine {
   }
 
   private resize(): void {
-    const width = this.canvas.clientWidth || window.innerWidth;
-    const height = this.canvas.clientHeight || window.innerHeight;
-    this.camera.aspect = width / Math.max(1, height);
+    const rect = this.canvas.getBoundingClientRect();
+    const width = Math.max(1, Math.round(rect.width || this.canvas.clientWidth || window.innerWidth));
+    const height = Math.max(1, Math.round(rect.height || this.canvas.clientHeight || window.innerHeight));
+    const aspect = width / height;
+    this.camera.aspect = aspect;
+    this.camera.fov = aspect >= 1 ? 70 : 50;
+    this.camera.near = 0.18;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
   }

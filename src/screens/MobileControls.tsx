@@ -25,6 +25,35 @@ export const MobileControls = () => {
   const knob = useRef<HTMLElement>(null);
   const origin = useRef({ x: 0, y: 0, id: -1 });
   const look = useRef({ x: 0, y: 0, id: -1, moved: 0, timer: 0 });
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef(0);
+
+  const remember = (event: { pointerId: number; clientX: number; clientY: number }) => {
+    const count = pointers.current.size;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (count < 2 && pointers.current.size === 2) pinch.current = fingerGap();
+  };
+
+  const forget = (id: number) => {
+    pointers.current.delete(id);
+    if (pointers.current.size < 2) pinch.current = 0;
+  };
+
+  const fingerGap = () => {
+    const pts = [...pointers.current.values()];
+    if (pts.length < 2) return 0;
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  };
+
+  const applyPinch = () => {
+    if (pointers.current.size < 2 || pinch.current <= 0) return false;
+    const gap = fingerGap();
+    const delta = pinch.current - gap;
+    if (Math.abs(delta) < 16) return true;
+    game()?.nudgeZoom(delta > 0 ? 1.4 : -1.4);
+    pinch.current = gap;
+    return true;
+  };
 
   useEffect(() => {
     if (!flying) return;
@@ -51,11 +80,14 @@ export const MobileControls = () => {
       <div
         className="touch-look"
         onPointerDown={(event) => {
-          if (look.current.id !== -1) return;
+          remember(event);
+          if (pointers.current.size > 1 || look.current.id !== -1) return;
           look.current = { x: event.clientX, y: event.clientY, id: event.pointerId, moved: 0, timer: 0 };
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event) => {
+          if (pointers.current.has(event.pointerId)) remember(event);
+          if (applyPinch()) return;
           if (look.current.id !== event.pointerId) return;
           const dx = event.clientX - look.current.x;
           const dy = event.clientY - look.current.y;
@@ -66,27 +98,33 @@ export const MobileControls = () => {
           game()?.addLook(dx, dy);
         }}
         onPointerUp={(event) => {
-          const tapped = look.current.id === event.pointerId && look.current.moved < TAP_SLOP;
+          forget(event.pointerId);
+          const tapped = look.current.id === event.pointerId && look.current.moved < TAP_SLOP && pointers.current.size === 0;
           look.current.id = -1;
           if (tapped) game()?.placeAt(event.clientX, event.clientY);
         }}
-        onPointerCancel={() => { look.current.id = -1; }}
+        onPointerCancel={(event) => { forget(event.pointerId); look.current.id = -1; }}
       />
       <div
         className="stick-zone"
         onPointerDown={(event) => {
+          remember(event);
+          if (pointers.current.size > 1) return;
           origin.current = { x: event.clientX, y: event.clientY, id: event.pointerId };
           event.currentTarget.setPointerCapture(event.pointerId);
           const point = rootPoint(event);
+          const half = (stick.current?.offsetWidth ?? 136) / 2;
           if (stick.current) {
             stick.current.style.left = `${point.x}px`;
             stick.current.style.top = `${point.y}px`;
             stick.current.style.bottom = 'auto';
-            stick.current.style.margin = '-68px 0 0 -68px';
+            stick.current.style.margin = `-${half}px 0 0 -${half}px`;
           }
           moveKnob(0, 0);
         }}
         onPointerMove={(event) => {
+          if (pointers.current.has(event.pointerId)) remember(event);
+          if (applyPinch()) return;
           if (origin.current.id !== event.pointerId) return;
           const dx = event.clientX - origin.current.x;
           const dy = event.clientY - origin.current.y;
@@ -109,14 +147,16 @@ export const MobileControls = () => {
           stick.current?.classList.toggle('edge', sprint);
           game()?.setSprint(sprint);
         }}
-        onPointerUp={() => {
+        onPointerUp={(event) => {
+          forget(event.pointerId);
           origin.current.id = -1;
           moveKnob(0, 0);
           parkStick();
           game()?.setMove(0, 0);
           game()?.setSprint(false);
         }}
-        onPointerCancel={() => {
+        onPointerCancel={(event) => {
+          forget(event.pointerId);
           origin.current.id = -1;
           moveKnob(0, 0);
           parkStick();
@@ -126,8 +166,8 @@ export const MobileControls = () => {
       />
       <div className="stick" ref={stick}><i ref={knob} /></div>
       <div className="zoom-pad">
-        <button type="button" aria-label="Приблизить" onPointerDown={(event) => { event.stopPropagation(); event.preventDefault(); game()?.nudgeZoom(-4); }}>+</button>
-        <button type="button" aria-label="Отдалить" onPointerDown={(event) => { event.stopPropagation(); event.preventDefault(); game()?.nudgeZoom(4); }}>−</button>
+        <button type="button" aria-label="Приблизить" onPointerDown={(event) => { event.stopPropagation(); event.preventDefault(); game()?.nudgeZoom(-4); }}>Ближе</button>
+        <button type="button" aria-label="Отдалить" onPointerDown={(event) => { event.stopPropagation(); event.preventDefault(); game()?.nudgeZoom(4); }}>Дальше</button>
       </div>
       <div className="touch-menu">
         <button type="button" onClick={(event) => { event.stopPropagation(); useUi.getState().setInventoryOpen(true); }}>Сумка</button>

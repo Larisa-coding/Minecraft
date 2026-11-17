@@ -52,20 +52,26 @@ export const GameScreen = () => {
   }, [id]);
 
   useEffect(() => {
-    const update = () => setPortrait(window.matchMedia('(pointer: coarse)').matches && window.innerHeight > window.innerWidth);
+    const update = () => setPortrait(window.innerHeight > window.innerWidth);
     update();
     window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    window.visualViewport?.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', update);
+      window.visualViewport?.removeEventListener('resize', update);
+    };
   }, []);
 
   return (
-    <div className="game-root">
+    <div className={portrait && worldUi.touch ? 'game-root is-portrait' : 'game-root'}>
       <canvas ref={canvasRef} />
       {!worldUi.ready && !worldUi.fatal && <LoadingScreen label={worldUi.loadingLabel} progress={worldUi.loading} />}
       {worldUi.fatal && <div className="loading"><div className="panel"><h2>Графика недоступна</h2><p>{worldUi.fatal}</p></div></div>}
       {worldUi.ready && <Hud />}
       {worldUi.ready && worldUi.touch && !paused && !inventory && !creative && <MobileControls />}
-      {portrait && worldUi.ready && <div className="portrait">Горизонтально удобнее, но играть можно и так.</div>}
+      {portrait && worldUi.touch && worldUi.ready && <div className="portrait">Горизонтально удобнее, но играть можно и так.</div>}
       {worldUi.ready && zoom < 1 && !worldUi.pointerLocked && !worldUi.touch && !paused && !inventory && !creative && !helpOpen && !settingsOpen && (
         <div className="lock-hint">Кликните по миру, чтобы крутить камеру. Колесо отдаляет вид, и тогда клик ставит блок в эту точку.</div>
       )}
