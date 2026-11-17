@@ -50,7 +50,7 @@ export const pickMob = (
     const along = vx * dx + vy * dy + vz * dz;
     if (along < 0.4 || along > reach) continue;
     const miss = Math.hypot(ox + dx * along - cx, oy + dy * along - cy, oz + dz * along - cz);
-    if (miss > 0.8) continue;
+    if (miss > 1.15) continue;
     if (!best || along < best.distance) best = { mob, distance: along };
   }
   return best;

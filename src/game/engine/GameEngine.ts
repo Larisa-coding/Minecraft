@@ -592,7 +592,20 @@ export class GameEngine {
 
   private placeAt(x: number, y: number): void {
     if (this.uiBlocked() || !this.ready) return;
+    const rect = this.canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((x - rect.left) / Math.max(1, rect.width)) * 2 - 1,
+      -((y - rect.top) / Math.max(1, rect.height)) * 2 + 1,
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(ndc, this.camera);
+    const { origin, direction } = raycaster.ray;
+    const picked = pickMob(this.mobs, origin.x, origin.y, origin.z, direction.x, direction.y, direction.z, 32);
     const hit = this.rayFromScreen(x, y, Math.max(this.reach(), 28));
+    if (picked && (!hit || picked.distance < hit.distance)) {
+      if (this.swing <= 0) this.strike(picked.mob);
+      return;
+    }
     if (!hit) return;
     this.hit = hit;
     this.tryPlace(false);
