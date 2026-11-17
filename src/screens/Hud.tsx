@@ -29,7 +29,7 @@ export const Hud = () => {
       )}
       {ui.showCoords && <div className="coords">{hud.x.toFixed(1)} {hud.y.toFixed(1)} {hud.z.toFixed(1)} {hud.flying ? '· полёт' : ''}</div>}
       {ui.showFps && <div className="fps">{Math.round(hud.fps)} FPS</div>}
-      <div className="save-ind">{hud.save === 'saving' ? 'Сохранение...' : hud.save === 'error' ? 'Ошибка сохранения' : 'Сохранено'}</div>}
+      <div className="save-ind">{hud.save === 'saving' ? 'Сохранение...' : hud.save === 'error' ? 'Ошибка сохранения' : 'Сохранено'}</div>
       {ui.showHints && !touch && <div className="hint">{hud.mode === 'creative' ? 'Колесо отдаляет вид · клик ставит блок в точку · F полёт' : 'Колесо отдаляет вид · клик ставит блок в точку · F ягоды'}</div>}
       {ui.showHotbar && (
         <div className="hotbar" style={scale}>
