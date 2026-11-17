@@ -17,6 +17,7 @@ const TAP_SLOP = 18;
 
 export const MobileControls = () => {
   const flying = useUi((state) => state.hud.flying);
+  const mode = useUi((state) => state.hud.mode);
   const slot = useUi((state) => state.hud.slot);
   const slots = useUi((state) => state.slots);
   const block = getBlockDef(slots[slot]?.id ?? 0);
@@ -170,6 +171,7 @@ export const MobileControls = () => {
         <button type="button" aria-label="Отдалить" onPointerDown={(event) => { event.stopPropagation(); event.preventDefault(); game()?.nudgeZoom(4); }}>Дальше</button>
       </div>
       <div className="touch-menu">
+        <button type="button" onClick={(event) => { event.stopPropagation(); if (mode === 'creative') useUi.getState().setCreativeOpen(true); else game()?.setMode('creative'); }}>{mode === 'creative' ? 'Мир' : 'Творч.'}</button>
         <button type="button" onClick={(event) => { event.stopPropagation(); useUi.getState().setInventoryOpen(true); }}>Сумка</button>
         <button type="button" onClick={(event) => { event.stopPropagation(); game()?.pause(); }}>Пауза</button>
       </div>

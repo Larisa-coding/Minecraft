@@ -7,6 +7,12 @@ import './styles/global.css';
 const root = document.getElementById('root');
 if (!root) throw new Error('Нет корневого элемента');
 
+const pinViewport = () => {
+  document.documentElement.style.setProperty('--app-h', `${window.innerHeight}px`);
+};
+pinViewport();
+window.addEventListener('orientationchange', () => window.setTimeout(pinViewport, 400));
+
 document.addEventListener('touchmove', (event) => {
   const target = event.target;
   if (target instanceof Element && target.closest('.panel, .screen, input, textarea, select')) return;

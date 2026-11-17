@@ -56,11 +56,9 @@ export const GameScreen = () => {
     update();
     window.addEventListener('resize', update);
     window.addEventListener('orientationchange', update);
-    window.visualViewport?.addEventListener('resize', update);
     return () => {
       window.removeEventListener('resize', update);
       window.removeEventListener('orientationchange', update);
-      window.visualViewport?.removeEventListener('resize', update);
     };
   }, []);
 

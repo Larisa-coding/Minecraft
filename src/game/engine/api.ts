@@ -1,4 +1,5 @@
 import type { Slot } from '../inventory/inventory';
+import type { GameMode } from '../world/constants';
 
 export interface GameApi {
   setMove: (strafe: number, forward: number) => void;
@@ -13,6 +14,7 @@ export interface GameApi {
   toggleFly: () => void;
   selectSlot: (index: number) => void;
   setSlots: (slots: Slot[]) => void;
+  setMode: (mode: GameMode) => void;
   pause: () => void;
   resume: () => void;
   save: () => Promise<void>;

@@ -10,7 +10,7 @@ import { isNight, makeZombieMesh, pickMob, poseZombie, stepMobs, swingTime, weap
 import { createMaterials, disposeMaterials, type GameMaterials } from '../rendering/materials';
 import { meshChunk, type ChunkBuffers } from '../rendering/mesher';
 import { SkyDome, skyState, type SkyState } from '../rendering/sky';
-import { chunkKey, renderDistanceChunks, WORLD_HEIGHT } from '../world/constants';
+import { chunkKey, renderDistanceChunks, WORLD_HEIGHT, type GameMode } from '../world/constants';
 import { affectedChunkKeys } from '../world/edits';
 import { VoxelWorld } from '../world/VoxelWorld';
 import { hashSeed } from '../../utils/hash';
@@ -154,10 +154,7 @@ export class GameEngine {
     };
     this.touch = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1;
     this.slots = cloneSlots(save.inventory);
-    if (save.mode === 'creative' && !this.slots.some((slot) => (getBlockDef(slot.id)?.damage ?? 0) > 0)) {
-      const empty = this.slots.findIndex((slot, index) => index < 9 && (slot.id === 0 || slot.count <= 0));
-      this.slots[empty >= 0 ? empty : 8] = { id: blockId('wood_sword'), count: 1 };
-    }
+    if (save.mode === 'creative') this.ensureWeapons();
     this.yaw = save.player.yaw;
     this.pitch = THREE.MathUtils.clamp(save.player.pitch, -1.52, 1.52);
     this.slot = save.player.slot;
@@ -261,7 +258,6 @@ export class GameEngine {
     this.bindInput();
     this.onResize = () => this.resize();
     window.addEventListener('resize', this.onResize);
-    window.visualViewport?.addEventListener('resize', this.onResize);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.canvas);
     this.unsub = useSettings.subscribe((state) => {
@@ -303,7 +299,6 @@ export class GameEngine {
     bindGame(null);
     this.unsub();
     window.removeEventListener('resize', this.onResize);
-    window.visualViewport?.removeEventListener('resize', this.onResize);
     this.resizeObserver?.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
@@ -355,6 +350,7 @@ export class GameEngine {
       toggleFly: () => this.toggleFly(),
       selectSlot: (index) => this.selectSlot(index),
       setSlots: (slots) => { this.slots = cloneSlots(slots); useUi.getState().setSlots(this.slots); this.dirty = true; },
+      setMode: (mode) => this.setMode(mode),
       pause: () => this.pause(),
       resume: () => this.resume(),
       save: () => this.flush(true, true),
@@ -527,6 +523,28 @@ export class GameEngine {
   private openCreative(): void {
     if (document.pointerLockElement === this.canvas) document.exitPointerLock();
     useUi.getState().setCreativeOpen(true);
+  }
+
+  private ensureWeapons(): void {
+    const ids = ['wood_sword', 'stone_sword', 'iron_sword'].map((key) => blockId(key));
+    ids.forEach((id, index) => {
+      if (this.slots.some((slot) => slot.id === id && slot.count > 0)) return;
+      const empty = this.slots.findIndex((slot, slotIndex) => slotIndex < 9 && (slot.id === 0 || slot.count <= 0));
+      this.slots[empty >= 0 ? empty : 6 + index] = { id, count: 1 };
+    });
+  }
+
+  private setMode(mode: GameMode): void {
+    this.save.mode = mode;
+    if (mode !== 'creative') {
+      this.flying = false;
+      this.body.flying = false;
+      this.body.vy = 0;
+    } else this.ensureWeapons();
+    useUi.getState().setSlots(cloneSlots(this.slots));
+    this.dirty = true;
+    this.publish(true);
+    useUi.getState().pushToast(mode === 'creative' ? 'Творческий режим. Клинки на панели.' : 'Выживание');
   }
 
   private toggleFly(): void {

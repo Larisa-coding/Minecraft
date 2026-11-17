@@ -50,7 +50,7 @@ export const InventoryScreen = () => {
   return (
     <div className="inv" onContextMenu={(event) => event.preventDefault()}>
       <div className="panel">
-        <div className="row" style={{ justifyContent: 'space-between' }}>
+        <div className="inv-bar row">
           <h2>{mode === 'creative' ? 'Блоки' : 'Инвентарь'}</h2>
           <div className="row">
             {!isEmpty(held) && <Button variant="danger" small onClick={() => setHeld(empty)}>Выбросить</Button>}
@@ -71,6 +71,7 @@ export const InventoryScreen = () => {
                   next[selected] = { id: block.id, count: 1 };
                   game()?.setSlots(next);
                   audio.ui();
+                  useUi.getState().setInventoryOpen(false);
                 }}>
                   <img src={iconUrl(block.icon)} alt="" />
                 </button>
@@ -109,7 +110,7 @@ export const InventoryScreen = () => {
           {slots.slice(0, 9).map((slot, index) => {
             const def = getBlockDef(slot.id);
             return (
-              <button key={index} className={index === selected ? 'slot selected' : 'slot'} onPointerDown={(event) => onSlot(index, event)} onClick={() => game()?.selectSlot(index)}>
+              <button key={index} className={index === selected ? 'slot selected' : 'slot'} onPointerDown={(event) => onSlot(index, event)} onClick={() => { game()?.selectSlot(index); useUi.getState().setInventoryOpen(false); }}>
                 {def && <img src={iconUrl(def.icon)} alt="" />}
                 {slot.count > 0 && <b>{mode === 'creative' ? '∞' : slot.count}</b>}
               </button>

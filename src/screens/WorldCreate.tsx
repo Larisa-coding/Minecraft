@@ -44,12 +44,10 @@ export const WorldCreate = () => {
         <h2>Новый мир</h2>
         <div className="stack">
           <label className="field">Название<input value={name} placeholder="Если пусто — имя создастся само" onChange={(event) => setName(event.target.value)} /></label>
-          <label className="field">Режим
-            <select value={mode} onChange={(event) => setMode(event.target.value as GameMode)}>
-              <option value="creative">Творческий</option>
-              <option value="survival">Выживание</option>
-            </select>
-          </label>
+          <div className="row">
+            <Button variant={mode === 'creative' ? 'primary' : 'ghost'} onClick={() => setMode('creative')}>Творческий</Button>
+            <Button variant={mode === 'survival' ? 'primary' : 'ghost'} onClick={() => setMode('survival')}>Выживание</Button>
+          </div>
           <label className="field">Размер
             <select value={size} onChange={(event) => setSize(event.target.value as WorldSize)}>
               <option value="small">Маленький</option>
