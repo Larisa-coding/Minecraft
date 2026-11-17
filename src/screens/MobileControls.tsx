@@ -24,7 +24,7 @@ export const MobileControls = () => {
   const stick = useRef<HTMLDivElement>(null);
   const knob = useRef<HTMLElement>(null);
   const origin = useRef({ x: 0, y: 0, id: -1 });
-  const look = useRef({ x: 0, y: 0, id: -1, moved: 0, timer: 0 });
+  const look = useRef({ x: 0, y: 0, id: -1, moved: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef(0);
 
@@ -82,7 +82,7 @@ export const MobileControls = () => {
         onPointerDown={(event) => {
           remember(event);
           if (pointers.current.size > 1 || look.current.id !== -1) return;
-          look.current = { x: event.clientX, y: event.clientY, id: event.pointerId, moved: 0, timer: 0 };
+          look.current = { x: event.clientX, y: event.clientY, id: event.pointerId, moved: 0 };
           event.currentTarget.setPointerCapture(event.pointerId);
         }}
         onPointerMove={(event) => {

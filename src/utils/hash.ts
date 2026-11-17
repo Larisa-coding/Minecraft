@@ -100,5 +100,3 @@ export const fbm3 = (x: number, y: number, z: number, seed: number, octaves: num
 };
 
 export const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v));
-
-export const clamp01 = (v: number): number => clamp(v, 0, 1);

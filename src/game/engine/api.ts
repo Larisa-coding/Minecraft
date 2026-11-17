@@ -1,12 +1,10 @@
 import type { Slot } from '../inventory/inventory';
-import type { Settings } from '../../storage/settings';
 
 export interface GameApi {
   setMove: (strafe: number, forward: number) => void;
   addLook: (dx: number, dy: number) => void;
   setJump: (value: boolean) => void;
   setSprint: (value: boolean) => void;
-  toggleSprint: () => void;
   setSneak: (value: boolean) => void;
   setBreaking: (value: boolean) => void;
   setPlacing: (value: boolean) => void;
@@ -26,8 +24,6 @@ export interface GameApi {
   toggleLine: () => void;
   toggleCamera: () => void;
   photo: () => void;
-  eat: () => void;
-  applySettings: (settings: Settings) => void;
 }
 
 let current: GameApi | null = null;

@@ -334,7 +334,6 @@ export class GameEngine {
         this.touchJump = value;
       },
       setSprint: (value) => { this.sprintLatch = value; },
-      toggleSprint: () => { this.sprintLatch = !this.sprintLatch; },
       setSneak: (value) => { this.touchSneak = value; },
       setBreaking: (value) => { this.breaking = value; if (!value) this.breakTime = 0; },
       setPlacing: (value) => { this.placing = value; if (value) { this.tryPlace(false); this.placeCooldown = 0.5; } },
@@ -354,8 +353,6 @@ export class GameEngine {
       toggleLine: () => { this.lineMode = !this.lineMode; this.lastPlace = null; this.dirty = true; this.publish(true); },
       toggleCamera: () => this.toggleCamera(),
       photo: () => this.photo(),
-      eat: () => this.eat(),
-      applySettings: (settings) => { this.settings = settings; this.applyGraphics(); },
     };
   }
 
@@ -594,7 +591,7 @@ export class GameEngine {
     requestAnimationFrame(this.frame);
     const dt = Math.min(this.clock.getDelta(), 0.05);
     this.materials.waterTime.value += dt;
-    if (!this.ready) this.warmup(dt);
+    if (!this.ready) this.warmup();
     else if (!this.uiBlocked()) this.simulate(dt);
     else this.body.vx = this.body.vz = 0;
     this.stream(this.ready ? 1 : 2);
@@ -618,8 +615,7 @@ export class GameEngine {
     this.renderer.render(this.scene, this.camera);
   };
 
-  private warmup(dt: void | number): void {
-    void dt;
+  private warmup(): void {
     if (this.boot.size === 0) return;
     let done = 0;
     for (const key of this.boot) if (this.chunks.has(key)) done += 1;
