@@ -58,6 +58,9 @@ export const TILE_KEYS = [
   'dead_bush',
   'stick',
   'berries',
+  'sword_wood',
+  'sword_stone',
+  'sword_iron',
 ] as const;
 
 export type TileKey = (typeof TILE_KEYS)[number];

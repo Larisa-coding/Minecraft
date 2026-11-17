@@ -5,7 +5,8 @@ import { bindGame, type GameApi } from './api';
 import { axisLine, canPlaceAt, isBreakable, targetCell, type BlockPos } from '../interaction/placement';
 import { REACH, raycastVoxel, type RayHit } from '../interaction/raycast';
 import { addItem, cloneSlots, consumeFromSlot, type Slot } from '../inventory/inventory';
-import { collisionBoxes, JUMP_SPEED, overlapsSolids, stepBody, type Body } from '../player/physics';
+import { collisionBoxes, JUMP_SPEED, nudgeOut, overlapsSolids, stepBody, type Body } from '../player/physics';
+import { isNight, makeZombieMesh, pickMob, poseZombie, stepMobs, swingTime, weaponDamage, ZOMBIE_HEALTH, type Mob } from '../entities/mobs';
 import { createMaterials, disposeMaterials, type GameMaterials } from '../rendering/materials';
 import { meshChunk, type ChunkBuffers } from '../rendering/mesher';
 import { SkyDome, skyState, type SkyState } from '../rendering/sky';
@@ -104,6 +105,12 @@ export class GameEngine {
   private lastForwardTap = 0;
   private lastPlace: BlockPos | null = null;
   private hit: RayHit | null = null;
+  private aimed: Mob | null = null;
+  private readonly mobs: Mob[] = [];
+  private readonly mobMeshes = new Map<number, THREE.Group>();
+  private mobTimer = 0;
+  private nextMob = 1;
+  private swing = 0;
   private dirty = false;
   private saveTimer = 0;
   private positionTimer = 0;
@@ -147,6 +154,10 @@ export class GameEngine {
     };
     this.touch = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 1;
     this.slots = cloneSlots(save.inventory);
+    if (save.mode === 'creative' && !this.slots.some((slot) => (getBlockDef(slot.id)?.damage ?? 0) > 0)) {
+      const empty = this.slots.findIndex((slot, index) => index < 9 && (slot.id === 0 || slot.count <= 0));
+      this.slots[empty >= 0 ? empty : 8] = { id: blockId('wood_sword'), count: 1 };
+    }
     this.yaw = save.player.yaw;
     this.pitch = THREE.MathUtils.clamp(save.player.pitch, -1.52, 1.52);
     this.slot = save.player.slot;
@@ -308,6 +319,8 @@ export class GameEngine {
     if (document.pointerLockElement === this.canvas) document.exitPointerLock();
     void this.flush(true);
     for (const key of [...this.chunks.keys()]) this.removeChunk(key, true);
+    for (const mesh of this.mobMeshes.values()) this.dropMobMesh(mesh);
+    this.mobMeshes.clear();
     this.sky.dispose();
     this.highlight.traverse((obj) => { if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments) obj.geometry.dispose(); });
     this.preview.traverse((obj) => { if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments) obj.geometry.dispose(); });
@@ -676,9 +689,23 @@ export class GameEngine {
       audio.jump();
     }
     this.jumpHeld = jump;
+    const beforeX = this.body.x;
     const beforeY = this.body.y;
+    const beforeZ = this.body.z;
     stepBody(this.body, dt, this.collision());
+    nudgeOut(this.body, this.collision());
+    if (!this.flying && this.body.onGround && mag > 0.25) {
+      const moved = Math.hypot(this.body.x - beforeX, this.body.z - beforeZ);
+      const tx = Math.floor(this.body.x + mx * 0.6);
+      const tz = Math.floor(this.body.z + mz * 0.6);
+      const ty = Math.floor(this.body.y + 0.15);
+      const wall = isCollidable(this.world.getBlock(tx, ty, tz));
+      const head = isCollidable(this.world.getBlock(tx, ty + 1, tz));
+      const ceiling = isCollidable(this.world.getBlock(Math.floor(this.body.x), Math.floor(this.body.y + this.body.height + 0.05), Math.floor(this.body.z)));
+      if (moved < speed * dt * 0.25 && wall && !head && !ceiling) this.body.vy = JUMP_SPEED * 0.86;
+    }
     this.afterPhysics(dt, beforeY);
+    this.updateMobs(dt);
     if (this.timeRunning) this.time = (this.time + dt / 360) % 1;
     this.updateBreaking(dt);
     if (this.placing) {
@@ -745,7 +772,110 @@ export class GameEngine {
     this.publish(true);
   }
 
+  private solidAt(x: number, y: number, z: number): boolean {
+    return isCollidable(this.world.getBlock(x, y, z));
+  }
+
+  private updateMobs(dt: number): void {
+    const night = isNight(this.time);
+    if (night) {
+      this.mobTimer += dt;
+      if (this.mobTimer > 6 && this.mobs.length < 4) {
+        this.mobTimer = 0;
+        this.spawnZombie();
+      }
+    }
+    const bite = stepMobs(this.mobs, dt, this.body, (x, y, z) => this.solidAt(x, y, z), night);
+    if (bite > 0) {
+      this.health = Math.max(0, this.health - bite);
+      audio.hurt();
+      this.dirty = true;
+      if (this.health <= 0) this.death();
+    }
+    for (let i = this.mobs.length - 1; i >= 0; i -= 1) {
+      const mob = this.mobs[i];
+      if (!mob) continue;
+      const far = Math.hypot(mob.x - this.body.x, mob.z - this.body.z) > 64;
+      if (mob.health <= 0 || far) {
+        if (mob.health <= 0 && this.save.mode === 'survival') {
+          const loot = addItem(this.slots, blockId('sticks'), 1);
+          if (loot.added > 0) {
+            this.slots = loot.slots;
+            useUi.getState().setSlots(this.slots);
+          }
+        }
+        this.mobs.splice(i, 1);
+        if (this.aimed?.id === mob.id) this.aimed = null;
+      }
+    }
+    this.syncMobs();
+  }
+
+  private spawnZombie(): void {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 14 + Math.random() * 12;
+    const x = this.body.x + Math.cos(angle) * dist;
+    const z = this.body.z + Math.sin(angle) * dist;
+    let y = Math.floor(this.body.y) + 6;
+    for (let i = 0; i < 18; i += 1) {
+      const fx = Math.floor(x);
+      const fz = Math.floor(z);
+      const ground = this.solidAt(fx, y - 1, fz);
+      const feet = this.solidAt(fx, y, fz);
+      const head = this.solidAt(fx, y + 1, fz);
+      const wet = getBlockDef(this.world.getBlock(fx, y - 1, fz))?.liquid === true;
+      if (ground && !feet && !head && !wet) {
+        this.mobs.push({ id: this.nextMob, x: fx + 0.5, y, z: fz + 0.5, health: ZOMBIE_HEALTH, cooldown: 0.6, hurt: 0 });
+        this.nextMob += 1;
+        return;
+      }
+      y -= 1;
+    }
+  }
+
+  private strike(mob: Mob): void {
+    const held = this.slots[this.slot]?.id ?? 0;
+    mob.health -= weaponDamage(held);
+    mob.hurt = 0.18;
+    this.swing = swingTime(held);
+    audio.hit();
+    if (mob.health <= 0) this.toastSoon('Зомби повержен');
+  }
+
+  private syncMobs(): void {
+    const alive = new Set(this.mobs.map((mob) => mob.id));
+    for (const [id, mesh] of this.mobMeshes) {
+      if (alive.has(id)) continue;
+      this.dropMobMesh(mesh);
+      this.mobMeshes.delete(id);
+    }
+    for (const mob of this.mobs) {
+      let mesh = this.mobMeshes.get(mob.id);
+      if (!mesh) {
+        mesh = makeZombieMesh();
+        this.mobMeshes.set(mob.id, mesh);
+        this.scene.add(mesh);
+      }
+      poseZombie(mesh, mob, this.body.x, this.body.z);
+    }
+  }
+
+  private dropMobMesh(mesh: THREE.Group): void {
+    this.scene.remove(mesh);
+    mesh.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      obj.geometry.dispose();
+      if (obj.material instanceof THREE.Material) obj.material.dispose();
+    });
+  }
+
   private updateBreaking(dt: number): void {
+    this.swing = Math.max(0, this.swing - dt);
+    if (this.breaking && this.aimed && this.aimed.health > 0) {
+      this.breakTime = 0;
+      if (this.swing <= 0) this.strike(this.aimed);
+      return;
+    }
     if (!this.breaking || !this.hit) { this.breakTime = 0; return; }
     const id = this.world.getBlock(this.hit.x, this.hit.y, this.hit.z);
     if (!isBreakable(this.hit.x, this.hit.y, this.hit.z, id) || this.hit.distance > this.reach()) {
@@ -837,10 +967,13 @@ export class GameEngine {
   }
 
   private updateTarget(): void {
-    if (!this.ready || this.uiBlocked()) { this.hit = null; this.highlight.visible = false; this.preview.visible = false; return; }
+    if (!this.ready || this.uiBlocked()) { this.hit = null; this.aimed = null; this.highlight.visible = false; this.preview.visible = false; return; }
     const eye = this.eye();
     const look = lookOf(this.yaw, this.pitch);
     this.hit = raycastVoxel(eye.x, eye.y, eye.z, look.x, look.y, look.z, this.reach(), (x, y, z) => this.world.getBlock(x, y, z), (id) => id !== AIR);
+    const melee = Math.min(3.4, this.reach());
+    const picked = pickMob(this.mobs, eye.x, eye.y, eye.z, look.x, look.y, look.z, melee);
+    this.aimed = picked && (!this.hit || picked.distance < this.hit.distance) ? picked.mob : null;
     if (!this.hit) {
       this.highlight.visible = false;
       this.preview.visible = false;
@@ -1068,7 +1201,7 @@ export class GameEngine {
 
   private publish(resetTimer: boolean): void {
     if (resetTimer) this.hudTimer = 0;
-    const blockName = this.hit ? getBlockDef(this.world.getBlock(this.hit.x, this.hit.y, this.hit.z))?.name ?? '' : '';
+    const blockName = this.aimed ? 'Зомби' : this.hit ? getBlockDef(this.world.getBlock(this.hit.x, this.hit.y, this.hit.z))?.name ?? '' : '';
     useUi.getState().setHud({
       health: this.health,
       hunger: this.hunger,

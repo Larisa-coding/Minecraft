@@ -22,6 +22,9 @@ export const RECIPES: Recipe[] = [
   { id: 'stone_bricks', name: 'Каменные кирпичи', inputs: [{ id: id('stone'), count: 4 }], output: { id: id('stone_bricks'), count: 4 } },
   { id: 'smooth', name: 'Гладкий камень', inputs: [{ id: id('cobble'), count: 4 }], output: { id: id('smooth_stone'), count: 4 } },
   { id: 'stone_slab', name: 'Каменные плиты', inputs: [{ id: id('stone'), count: 2 }], output: { id: id('stone_slab'), count: 4 } },
+  { id: 'wood_sword', name: 'Деревянный клинок', inputs: [{ id: id('oak_planks'), count: 1 }, { id: id('sticks'), count: 1 }], output: { id: id('wood_sword'), count: 1 } },
+  { id: 'stone_sword', name: 'Каменный клинок', inputs: [{ id: id('cobble'), count: 1 }, { id: id('sticks'), count: 1 }], output: { id: id('stone_sword'), count: 1 } },
+  { id: 'iron_sword', name: 'Железный клинок', inputs: [{ id: id('iron_ore'), count: 1 }, { id: id('sticks'), count: 1 }], output: { id: id('iron_sword'), count: 1 } },
 ];
 
 export const canCraft = (slots: Slot[], recipe: Recipe): boolean =>

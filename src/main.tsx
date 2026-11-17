@@ -7,6 +7,13 @@ import './styles/global.css';
 const root = document.getElementById('root');
 if (!root) throw new Error('Нет корневого элемента');
 
+document.addEventListener('touchmove', (event) => {
+  const target = event.target;
+  if (target instanceof Element && target.closest('.panel, .screen, input, textarea, select')) return;
+  if (event.cancelable) event.preventDefault();
+}, { passive: false });
+document.addEventListener('gesturestart', (event) => event.preventDefault());
+
 createRoot(root).render(
   <StrictMode>
     <ErrorBoundary>

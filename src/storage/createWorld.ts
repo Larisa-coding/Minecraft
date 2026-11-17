@@ -44,7 +44,7 @@ export const createWorldSave = (input: NewWorldInput): WorldSave => {
   }
   const now = Date.now();
   const inventory = input.mode === 'creative'
-    ? creativeHotbar(['grass', 'dirt', 'stone', 'oak_log', 'oak_planks', 'glass', 'bricks', 'glow', 'oak_leaves'].map(blockId))
+    ? creativeHotbar(['grass', 'dirt', 'stone', 'oak_log', 'oak_planks', 'glass', 'wood_sword', 'stone_sword', 'iron_sword'].map(blockId))
     : emptyInventory();
   return withChecksum({
     version: 1,

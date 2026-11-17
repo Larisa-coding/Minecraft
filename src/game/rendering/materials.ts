@@ -74,6 +74,12 @@ export const createMaterials = (): GameMaterials => {
     alphaTest: 0.4,
     side: THREE.DoubleSide,
   });
+  cutout.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\nvMossViewZ = mvPosition.z;');
+    shader.vertexShader = `varying float vMossViewZ;\n${shader.vertexShader}`;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\nif (vMossViewZ > -0.42) discard;');
+    shader.fragmentShader = `varying float vMossViewZ;\n${shader.fragmentShader}`;
+  };
   const glass = new THREE.MeshLambertMaterial({
     map: texture,
     vertexColors: true,

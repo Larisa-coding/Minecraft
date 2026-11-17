@@ -88,6 +88,17 @@ export class AudioManager {
     this.tone(160, 0.08, 'sine', 0.06);
   }
 
+  hit(): void {
+    this.unlock();
+    this.tone(180, 0.05, 'square', 0.05);
+    this.burst(240, 1.2, 0.08, 0.2);
+  }
+
+  hurt(): void {
+    this.unlock();
+    this.tone(90, 0.12, 'sawtooth', 0.06);
+  }
+
   ui(): void {
     this.unlock();
     this.tone(640, 0.04, 'square', 0.03);

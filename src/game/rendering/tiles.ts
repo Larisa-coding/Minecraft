@@ -25,6 +25,19 @@ const fill = (pix: Pix, color: string) => {
   for (let y = 0; y < 16; y += 1) for (let x = 0; x < 16; x += 1) pix(x, y, color);
 };
 
+const sword = (pix: Pix, blade: string, edge: string, grip: string) => {
+  fill(pix, 'rgba(0,0,0,0)');
+  for (let i = 1; i < 11; i += 1) {
+    pix(i, 15 - i, blade);
+    pix(i + 1, 15 - i, edge);
+  }
+  pix(11, 4, grip);
+  pix(12, 3, grip);
+  pix(10, 5, grip);
+  pix(12, 5, '#d9c7a3');
+  pix(10, 3, '#d9c7a3');
+};
+
 const speckled = (pix: Pix, rand: () => number, colors: string[]) => {
   for (let y = 0; y < 16; y += 1) {
     for (let x = 0; x < 16; x += 1) {
@@ -285,6 +298,9 @@ export const PAINTERS: Record<TileKey, (pix: Pix, rand: () => number) => void> =
       pix(8, y, '#8d6438');
     }
   },
+  sword_wood: (pix) => sword(pix, '#c1965c', '#8d6438', '#6b4a2c'),
+  sword_stone: (pix) => sword(pix, '#b7b9be', '#7d8088', '#4e525a'),
+  sword_iron: (pix) => sword(pix, '#d5dde6', '#8e9aab', '#5c6b7c'),
   berries: (pix) => {
     for (let y = 0; y < 16; y += 1) for (let x = 0; x < 16; x += 1) pix(x, y, 'rgba(0,0,0,0)');
     for (const [x, y, c] of [[5, 6, '#d23b4a'], [9, 5, '#e25462'], [8, 9, '#b12e3c'], [6, 10, '#3f8f45'], [11, 8, '#2f6d38']] as const) {

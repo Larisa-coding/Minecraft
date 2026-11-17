@@ -2,7 +2,7 @@ import { useState, type PointerEvent } from 'react';
 import { Button } from '../components/ui';
 import { audio } from '../game/audio/AudioManager';
 import { game } from '../game/engine/api';
-import { CATEGORIES, getBlockDef, placeableBlocks, type Category } from '../game/blocks/registry';
+import { CATEGORIES, creativeItems, getBlockDef, type Category } from '../game/blocks/registry';
 import { RECIPES, canCraft, craft } from '../game/inventory/crafting';
 import { addItem, cloneSlots, isEmpty, putHeld, quickMove, takeSlot, type Slot } from '../game/inventory/inventory';
 import { iconUrl } from '../game/rendering/materials';
@@ -45,7 +45,7 @@ export const InventoryScreen = () => {
     setHeld(result.held);
   };
 
-  const catalog = placeableBlocks().filter((block) => (category === 'all' || block.category === category) && block.name.toLowerCase().includes(query));
+  const catalog = creativeItems().filter((block) => (category === 'all' || block.category === category) && block.name.toLowerCase().includes(query));
 
   return (
     <div className="inv" onContextMenu={(event) => event.preventDefault()}>

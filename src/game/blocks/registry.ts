@@ -2,7 +2,7 @@ import type { TileKey } from '../rendering/tileKeys';
 
 export const AIR = 0;
 
-export type Category = 'nature' | 'wood' | 'stone' | 'ores' | 'build' | 'decor' | 'food';
+export type Category = 'nature' | 'wood' | 'stone' | 'ores' | 'build' | 'decor' | 'food' | 'weapon';
 export type BlockShape = 'cube' | 'slab' | 'cross' | 'none';
 export type RenderLayer = 'opaque' | 'cutout' | 'glass' | 'water' | 'glow' | 'none';
 export type SoundKind = 'dirt' | 'stone' | 'wood' | 'sand' | 'grass' | 'glass' | 'snow' | 'wet' | 'plant' | 'ui';
@@ -31,6 +31,7 @@ export interface BlockDef {
   layer: RenderLayer;
   hardness: number;
   light: number;
+  damage: number;
   sound: SoundKind;
   icon: TileKey;
   faces: Faces;
@@ -79,6 +80,7 @@ interface Draft {
   layer?: RenderLayer;
   hardness?: number;
   light?: number;
+  damage?: number;
   sound?: SoundKind;
   icon?: TileKey;
 }
@@ -94,6 +96,7 @@ const define = (draft: Draft): BlockDef => ({
   layer: draft.layer ?? 'opaque',
   hardness: draft.hardness ?? 0.6,
   light: draft.light ?? 0,
+  damage: draft.damage ?? 0,
   sound: draft.sound ?? 'stone',
   icon: draft.icon ?? draft.faces.top,
   id: draft.id,
@@ -141,9 +144,9 @@ export const BLOCKS: BlockDef[] = [
     hardness: 0.15,
     sound: 'wet',
   }),
-  define({ id: 10, key: 'oak_leaves', name: 'Дубовые листья', category: 'nature', faces: cube('leaves_oak'), transparent: true, layer: 'cutout', hardness: 0.22, sound: 'grass' }),
-  define({ id: 11, key: 'birch_leaves', name: 'Берёзовые листья', category: 'nature', faces: cube('leaves_birch'), transparent: true, layer: 'cutout', hardness: 0.22, sound: 'grass' }),
-  define({ id: 12, key: 'pine_leaves', name: 'Хвоя', category: 'nature', faces: cube('leaves_pine'), transparent: true, layer: 'cutout', hardness: 0.22, sound: 'grass' }),
+  define({ id: 10, key: 'oak_leaves', name: 'Дубовые листья', category: 'nature', faces: cube('leaves_oak'), transparent: true, collidable: false, layer: 'cutout', hardness: 0.22, sound: 'grass' }),
+  define({ id: 11, key: 'birch_leaves', name: 'Берёзовые листья', category: 'nature', faces: cube('leaves_birch'), transparent: true, collidable: false, layer: 'cutout', hardness: 0.22, sound: 'grass' }),
+  define({ id: 12, key: 'pine_leaves', name: 'Хвоя', category: 'nature', faces: cube('leaves_pine'), transparent: true, collidable: false, layer: 'cutout', hardness: 0.22, sound: 'grass' }),
   define({ id: 13, key: 'oak_log', name: 'Дубовое бревно', category: 'wood', faces: pillar('log_oak', 'log_oak_top'), hardness: 0.55, sound: 'wood' }),
   define({ id: 14, key: 'birch_log', name: 'Берёзовое бревно', category: 'wood', faces: pillar('log_birch', 'log_birch_top'), hardness: 0.55, sound: 'wood' }),
   define({ id: 15, key: 'pine_log', name: 'Сосновое бревно', category: 'wood', faces: pillar('log_pine', 'log_pine_top'), hardness: 0.55, sound: 'wood' }),
@@ -208,6 +211,9 @@ export const BLOCKS: BlockDef[] = [
     sound: 'plant',
     icon: 'berries',
   }),
+  define({ id: 202, key: 'wood_sword', name: 'Деревянный клинок', category: 'weapon', faces: cube('sword_wood'), solid: false, collidable: false, placeable: false, shape: 'none', layer: 'none', hardness: 0, damage: 4, sound: 'wood', icon: 'sword_wood' }),
+  define({ id: 203, key: 'stone_sword', name: 'Каменный клинок', category: 'weapon', faces: cube('sword_stone'), solid: false, collidable: false, placeable: false, shape: 'none', layer: 'none', hardness: 0, damage: 5, sound: 'stone', icon: 'sword_stone' }),
+  define({ id: 204, key: 'iron_sword', name: 'Железный клинок', category: 'weapon', faces: cube('sword_iron'), solid: false, collidable: false, placeable: false, shape: 'none', layer: 'none', hardness: 0, damage: 7, sound: 'stone', icon: 'sword_iron' }),
 ];
 
 const byId = new Map<number, BlockDef>();
@@ -238,6 +244,8 @@ export const isReplaceable = (id: number): boolean => id === AIR || (getBlockDef
 
 export const placeableBlocks = (): BlockDef[] => BLOCKS.filter((block) => block.placeable);
 
+export const creativeItems = (): BlockDef[] => BLOCKS.filter((block) => block.placeable || block.damage > 0);
+
 export const CATEGORIES: { id: Category; name: string }[] = [
   { id: 'nature', name: 'Природа' },
   { id: 'wood', name: 'Дерево' },
@@ -245,6 +253,7 @@ export const CATEGORIES: { id: Category; name: string }[] = [
   { id: 'ores', name: 'Руды' },
   { id: 'build', name: 'Строительство' },
   { id: 'decor', name: 'Декор' },
+  { id: 'weapon', name: 'Оружие' },
 ];
 
 export const FACE_NAMES = ['top', 'bottom', 'north', 'south', 'east', 'west'] as const;

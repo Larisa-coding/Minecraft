@@ -9,6 +9,7 @@ import { axisLine, canPlaceAt, targetCell } from '../src/game/interaction/placem
 import { raycastVoxel } from '../src/game/interaction/raycast';
 import { collisionBoxes, stepBody, type Body } from '../src/game/player/physics';
 import { migrateWorldSave, withChecksum } from '../src/storage/serializer';
+import { pickMob, stepMobs, type Mob } from '../src/game/entities/mobs';
 import { fbm2, hashSeed } from '../src/utils/hash';
 import { generateChunk, findSpawn, surfaceAt } from '../src/game/world/terrain';
 import { VoxelWorld } from '../src/game/world/VoxelWorld';
@@ -161,6 +162,29 @@ describe('инвентарь, крафт и сохранения', () => {
 
   it('шум стабилен', () => {
     expect(fbm2(1.2, 3.4, 9, 3)).toBe(fbm2(1.2, 3.4, 9, 3));
+  });
+});
+
+describe('зомби и оружие', () => {
+  it('удар попадает в того, кто перед глазами, и не в того, кто сзади', () => {
+    const front: Mob = { id: 1, x: 0, y: 0, z: -3, health: 12, cooldown: 0, hurt: 0 };
+    const back: Mob = { id: 2, x: 0, y: 0, z: 3, health: 12, cooldown: 0, hurt: 0 };
+    const hit = pickMob([front, back], 0, 1.6, 0, 0, 0, -1, 3.4);
+    expect(hit?.mob.id).toBe(1);
+    expect(pickMob([back], 0, 1.6, 0, 0, 0, -1, 3.4)).toBeNull();
+  });
+
+  it('зомби подходит и кусает вплотную', () => {
+    const mob: Mob = { id: 1, x: 3, y: 1, z: 0, health: 12, cooldown: 0, hurt: 0 };
+    const solid = (x: number, y: number) => y === 0 && x >= 0 && x <= 6;
+    const bite = stepMobs([mob], 0.5, { x: 0.4, y: 1, z: 0 }, (x, y, z) => solid(x, y) && z === 0, true);
+    expect(mob.x).toBeLessThan(3);
+    expect(bite === 0 || bite === 3).toBe(true);
+  });
+
+  it('листва не держит тело, клинок бьёт сильнее кулака', () => {
+    expect(getBlockDef(blockId('oak_leaves'))?.collidable).toBe(false);
+    expect(getBlockDef(blockId('iron_sword'))?.damage).toBeGreaterThan(getBlockDef(blockId('wood_sword'))?.damage ?? 0);
   });
 });
 

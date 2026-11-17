@@ -158,6 +158,25 @@ const moveHorizontal = (body: Body, axis: 'x' | 'z', delta: number, world: Colli
   body.onGround = true;
 };
 
+export const nudgeOut = (body: Body, world: CollisionQuery): void => {
+  if (!overlapsSolids(body, world)) return;
+  const origin = { x: body.x, y: body.y, z: body.z };
+  for (let step = 1; step <= 8; step += 1) {
+    body.y = origin.y + step * 0.25;
+    if (!overlapsSolids(body, world)) return;
+  }
+  body.y = origin.y;
+  const shifts: [number, number][] = [[0.45, 0], [-0.45, 0], [0, 0.45], [0, -0.45]];
+  for (const [dx, dz] of shifts) {
+    body.x = origin.x + dx;
+    body.z = origin.z + dz;
+    if (!overlapsSolids(body, world)) return;
+  }
+  body.x = origin.x;
+  body.y = origin.y + 1;
+  body.z = origin.z;
+};
+
 export const GRAVITY = 26;
 export const JUMP_SPEED = 8.6;
 
