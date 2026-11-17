@@ -134,7 +134,8 @@ h2 { margin: 0 0 8px; font-size: 28px; }
 .hint { position: absolute; left: 50%; bottom: max(108px, calc(env(safe-area-inset-bottom) + 104px)); transform: translateX(-50%); font-size: 12px; color: var(--muted); max-width: min(280px, calc(100% - 96px)); text-align: center; }
 .move-state { position: absolute; left: 50%; top: max(14px, env(safe-area-inset-top)); transform: translateX(-50%); background: var(--elev); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-size: 12px; }
 .lock-hint, .portrait { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); background: var(--elev); border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; pointer-events: none; max-width: min(420px, calc(100% - 32px)); text-align: center; }
-.portrait { top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); right: auto; transform: none; max-width: 156px; font-size: 12px; padding: 8px 10px; text-align: left; z-index: 4; }
+.portrait { top: max(8px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); right: auto; transform: none; max-width: 112px; font-size: 11px; line-height: 1.25; padding: 6px 8px; text-align: left; z-index: 4; }
+.is-portrait .move-state { max-width: min(140px, calc(100vw - 260px)); }
 
 .touch-ui { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
 .touch-look { position: absolute; inset: 56px 0 76px 0; z-index: 1; pointer-events: auto; touch-action: none; }
